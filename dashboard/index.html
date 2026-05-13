@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NBA Win Probability</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    :root {
+      --bg:         #0a0a0a;
+      --card:       #111111;
+      --border:     #1e1e1e;
+      --gold:       #f59e0b;
+      --gold-dim:   #b45309;
+      --gold-glow:  rgba(245,158,11,0.35);
+      --silver:     #64748b;
+      --text:       #f1f5f9;
+      --muted:      #4b5563;
+      --green:      #22c55e;
+      --red:        #ef4444;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── GAME SELECT ── */
+    #game-select {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 20px;
+      padding: 40px 24px;
+    }
+
+    .select-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2rem;
+      letter-spacing: 0.12em;
+      color: var(--gold);
+    }
+
+    .select-sub {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-top: -12px;
+    }
+
+    .game-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 48px;
+      cursor: pointer;
+      text-align: center;
+      min-width: 300px;
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+
+    .game-card:hover {
+      border-color: var(--gold);
+      box-shadow: 0 0 24px var(--gold-glow);
+      transform: translateY(-2px);
+    }
+
+    .game-card .matchup {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.2rem;
+      letter-spacing: 0.06em;
+    }
+
+    .game-card .game-time {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    /* ── DASHBOARD ── */
+    #dashboard {
+      display: none;
+      flex-direction: column;
+      width: 100%;
+      max-width: 580px;
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.18em;
+      color: var(--gold);
+    }
+
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .live-dot.on {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: blink 1.8s ease-in-out infinite;
+    }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+    .back-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .back-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+    /* Status strip */
+    .status-strip {
+      text-align: center;
+      padding: 7px 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+    }
+
+    /* Scoreboard */
+    .scoreboard {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 26px 20px 4px;
+      gap: 8px;
+    }
+
+    .team { display: flex; flex-direction: column; gap: 3px; }
+    .team.away { align-items: flex-start; }
+    .team.home { align-items: flex-end; }
+
+    .team-badge {
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .team-tri {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.6rem;
+      letter-spacing: 0.04em;
+      line-height: 1;
+    }
+
+    .team.away .team-tri { color: #cbd5e1; }
+    .team.home .team-tri { color: var(--gold); }
+
+    .score-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .score-digits {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3.4rem;
+      letter-spacing: 0.04em;
+      line-height: 1;
+    }
+
+    .score-sep { color: var(--muted); margin: 0 3px; }
+
+    .poss-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 18px;
+    }
+
+    .poss-label {
+      font-size: 0.5rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--border);
+    }
+
+    .poss-arrow {
+      font-size: 0.85rem;
+      color: var(--gold);
+      text-shadow: 0 0 8px var(--gold);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .poss-arrow.show { opacity: 1; }
+
+    /* ── GAUGE ── */
+    .gauge-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 4px 20px 0;
+    }
+
+    #gauge-svg {
+      width: 100%;
+      max-width: 480px;
+      overflow: visible;
+    }
+
+    .prob-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      width: 100%;
+      max-width: 480px;
+      padding: 0 28px;
+      margin-top: -6px;
+    }
+
+    .prob-col { display: flex; flex-direction: column; gap: 1px; }
+    .prob-col.away { align-items: flex-start; }
+    .prob-col.home { align-items: flex-end; }
+
+    .prob-pct {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.4rem;
+      letter-spacing: 0.02em;
+      line-height: 1;
+      transition: color 0.4s;
+    }
+
+    .prob-col.away .prob-pct { color: #cbd5e1; }
+    .prob-col.home .prob-pct { color: var(--gold); }
+
+    .prob-tag {
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    /* Split bar */
+    .split-bar-wrap {
+      width: 100%;
+      max-width: 480px;
+      height: 5px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 10px 0 0;
+    }
+
+    .split-bar-home {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+      float: right;
+      border-radius: 3px 0 0 3px;
+      transition: width 0.6s ease;
+    }
+
+    /* ── STAT CARDS ── */
+    .stat-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      padding: 14px 20px;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 10px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .stat-val {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.5rem;
+      letter-spacing: 0.04em;
+      line-height: 1;
+    }
+
+    .stat-val.gold  { color: var(--gold); }
+    .stat-val.dim   { color: #94a3b8; }
+    .stat-val.plain { color: var(--text); }
+
+    /* ── FOUL TRACKER ── */
+    .foul-card {
+      margin: 0 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 18px;
+    }
+
+    .section-label {
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 11px;
+    }
+
+    .foul-grid {
+      display: grid;
+      grid-template-columns: 1fr 1px 1fr;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .foul-sep { background: var(--border); height: 36px; }
+
+    .foul-team { display: flex; flex-direction: column; gap: 6px; }
+    .foul-team.away { align-items: flex-start; }
+    .foul-team.home { align-items: flex-end; }
+
+    .foul-team-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1rem;
+      letter-spacing: 0.06em;
+    }
+
+    .foul-team.away .foul-team-name { color: #cbd5e1; }
+    .foul-team.home .foul-team-name { color: var(--gold); }
+
+    .foul-dots { display: flex; gap: 5px; }
+
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      border: 1.5px solid var(--muted);
+      transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+    }
+
+    .dot.lit {
+      background: var(--gold);
+      border-color: var(--gold);
+      box-shadow: 0 0 5px var(--gold-glow);
+    }
+
+    .bonus-tag {
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--red);
+      color: #fff;
+      opacity: 0;
+      transition: opacity 0.3s;
+      text-transform: uppercase;
+    }
+
+    .bonus-tag.show { opacity: 1; }
+
+    /* ── SPARKLINE ── */
+    .timeline-card {
+      margin: 10px 20px 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 14px;
+    }
+
+    #sparkline {
+      width: 100%;
+      height: 76px;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── GAME SELECT ── -->
+<div id="game-select">
+  <div class="select-title">NBA Win Probability</div>
+  <div class="select-sub">Select a game to track</div>
+  <div id="game-list">
+    <p style="color:var(--muted);font-size:0.85rem">Fetching today's games…</p>
+  </div>
+</div>
+
+<!-- ── DASHBOARD ── -->
+<div id="dashboard">
+
+  <div class="header">
+    <button class="back-btn" onclick="goBack()">← Games</button>
+    <div class="header-title">NBA Win Probability</div>
+    <div class="live-indicator">
+      <div class="live-dot" id="live-dot"></div>
+      <span id="conn-label">Connecting</span>
+    </div>
+  </div>
+
+  <div class="status-strip" id="status-strip">--</div>
+
+  <!-- Scoreboard -->
+  <div class="scoreboard">
+    <div class="team away">
+      <div class="team-badge">Away</div>
+      <div class="team-tri" id="away-tri">---</div>
+    </div>
+    <div class="score-block">
+      <div class="score-digits">
+        <span id="away-score">0</span>
+        <span class="score-sep">–</span>
+        <span id="home-score">0</span>
+      </div>
+      <div class="poss-indicator">
+        <span class="poss-arrow" id="poss-away">◀</span>
+        <span class="poss-label">BALL</span>
+        <span class="poss-arrow" id="poss-home">▶</span>
+      </div>
+    </div>
+    <div class="team home">
+      <div class="team-badge">Home</div>
+      <div class="team-tri" id="home-tri">---</div>
+    </div>
+  </div>
+
+  <!-- Gauge -->
+  <div class="gauge-wrap">
+    <svg id="gauge-svg" viewBox="0 0 480 210">
+      <defs>
+        <filter id="glow-home" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <!-- Labels at arc ends -->
+      <text x="26"  y="196" font-family="'Bebas Neue',sans-serif" font-size="13" fill="#475569" letter-spacing="1">AWAY</text>
+      <text x="434" y="196" font-family="'Bebas Neue',sans-serif" font-size="13" fill="#f59e0b" letter-spacing="1" text-anchor="end">HOME</text>
+      <text x="240" y="30"  font-family="'Inter',sans-serif" font-size="10" fill="#374151" text-anchor="middle" font-weight="700" letter-spacing="2">50</text>
+      <!-- Background arc -->
+      <path id="g-bg"   fill="none" stroke="#1e1e1e" stroke-width="20" stroke-linecap="round"/>
+      <!-- Away arc -->
+      <path id="g-away" fill="none" stroke="#334155" stroke-width="20" stroke-linecap="butt"/>
+      <!-- Home arc -->
+      <path id="g-home" fill="none" stroke="#f59e0b" stroke-width="20" stroke-linecap="butt" filter="url(#glow-home)"/>
+      <!-- Needle -->
+      <line id="g-needle" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+
+    <div class="prob-row">
+      <div class="prob-col away">
+        <span class="prob-pct" id="away-prob">--%</span>
+        <span class="prob-tag" id="away-prob-tag">Away Win</span>
+      </div>
+      <div class="prob-col home">
+        <span class="prob-pct" id="home-prob">--%</span>
+        <span class="prob-tag" id="home-prob-tag">Home Win</span>
+      </div>
+    </div>
+
+    <div class="split-bar-wrap">
+      <div class="split-bar-home" id="split-bar" style="width:50%"></div>
+    </div>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-label">Score Diff</div>
+      <div class="stat-val plain" id="stat-diff">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Time Left</div>
+      <div class="stat-val plain" id="stat-clock">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Period</div>
+      <div class="stat-val plain" id="stat-period">--</div>
+    </div>
+  </div>
+
+  <!-- Foul tracker -->
+  <div class="foul-card">
+    <div class="section-label">Foul Tracker</div>
+    <div class="foul-grid">
+      <div class="foul-team away">
+        <div class="foul-team-name" id="foul-away-name">AWAY</div>
+        <div class="foul-dots" id="foul-away-dots"></div>
+        <div class="bonus-tag" id="bonus-away">In Bonus</div>
+      </div>
+      <div class="foul-sep"></div>
+      <div class="foul-team home">
+        <div class="foul-team-name" id="foul-home-name">HOME</div>
+        <div class="foul-dots" id="foul-home-dots"></div>
+        <div class="bonus-tag" id="bonus-home">In Bonus</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="timeline-card">
+    <div class="section-label">Win Probability Timeline</div>
+    <canvas id="sparkline"></canvas>
+  </div>
+
+</div><!-- #dashboard -->
+
+<script>
+const SERVER = window.location.origin;  // works whether served by Flask or opened directly
+
+// ── Gauge constants ──
+const CX = 240, CY = 190, R = 158;
+
+function ptOnArc(prob) {
+  // prob=0 → left (away), prob=1 → right (home)
+  const θ = (1 - prob) * Math.PI;
+  return { x: CX + R * Math.cos(θ), y: CY - R * Math.sin(θ) };
+}
+
+function arcD(from, to) {
+  if (Math.abs(to - from) < 0.001) return '';
+  const a = ptOnArc(from), b = ptOnArc(to);
+  // All arcs are ≤180° on the upper semicircle → large-arc=0, sweep=1
+  return `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} A ${R} ${R} 0 0 1 ${b.x.toFixed(2)} ${b.y.toFixed(2)}`;
+}
+
+function updateGauge(homeProb) {
+  const p  = Math.max(0.005, Math.min(0.995, homeProb));
+  const sp = 1 - p;  // split in arc-coords: away occupies [0..sp], home [sp..1]
+
+  document.getElementById('g-bg').setAttribute('d', arcD(0, 1));
+  document.getElementById('g-away').setAttribute('d', sp > 0.005 ? arcD(0, sp) : '');
+  document.getElementById('g-home').setAttribute('d', sp < 0.995 ? arcD(sp, 1) : '');
+
+  // Needle at split
+  const angle = sp * Math.PI;   // standard math angle for the split point
+  const cos = Math.cos(angle), sin = Math.sin(angle);
+  const x1 = (CX + (R - 15) * cos).toFixed(2), y1 = (CY - (R - 15) * sin).toFixed(2);
+  const x2 = (CX + (R + 10) * cos).toFixed(2), y2 = (CY - (R + 10) * sin).toFixed(2);
+  const n = document.getElementById('g-needle');
+  n.setAttribute('x1', x1); n.setAttribute('y1', y1);
+  n.setAttribute('x2', x2); n.setAttribute('y2', y2);
+}
+
+// ── Sparkline ──
+const probHistory = [];
+
+function drawSparkline() {
+  const canvas = document.getElementById('sparkline');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  // 50% dashed guide
+  ctx.strokeStyle = '#1e1e1e';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 5]);
+  ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (probHistory.length < 2) return;
+
+  const pts = probHistory;
+  const step = W / (pts.length - 1);
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(245,158,11,0.28)');
+  grad.addColorStop(1, 'rgba(245,158,11,0)');
+  ctx.beginPath();
+  pts.forEach((v, i) => {
+    const x = i * step, y = H - v * H;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo((pts.length-1)*step, H); ctx.lineTo(0, H); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  pts.forEach((v, i) => {
+    const x = i * step, y = H - v * H;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // End dot
+  const lx = (pts.length-1)*step, ly = H - pts[pts.length-1]*H;
+  ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI*2);
+  ctx.fillStyle = '#f59e0b'; ctx.fill();
+  ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 2; ctx.stroke();
+}
+
+// ── Foul dots ──
+function renderDots(containerId, count, threshold) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  for (let i = 0; i < threshold; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < count ? ' lit' : '');
+    el.appendChild(d);
+  }
+}
+
+// ── Clock / period ──
+function fmtClock(clock) {
+  if (!clock) return '--:--';
+  const m = clock.match(/PT(\d+)M([\d.]+)S/);
+  if (!m) return '--:--';
+  return `${m[1]}:${String(Math.floor(parseFloat(m[2]))).padStart(2,'0')}`;
+}
+
+function fmtPeriod(p) {
+  if (!p) return '--';
+  return p <= 4 ? `Q${p}` : `OT${p > 5 ? p-4 : ''}`;
+}
+
+// ── Apply server update ──
+function applyUpdate(d) {
+  const hp = d.home_win_prob, ap = d.away_win_prob;
+
+  // Gauge + prob bar
+  updateGauge(hp);
+  document.getElementById('home-prob').textContent = `${Math.round(hp*100)}%`;
+  document.getElementById('away-prob').textContent = `${Math.round(ap*100)}%`;
+  document.getElementById('home-prob-tag').textContent = `${d.home_team} Win`;
+  document.getElementById('away-prob-tag').textContent = `${d.away_team} Win`;
+  document.getElementById('split-bar').style.width = `${hp*100}%`;
+
+  // Scoreboard
+  document.getElementById('home-tri').textContent = d.home_team;
+  document.getElementById('away-tri').textContent = d.away_team;
+  document.getElementById('home-score').textContent = d.home_score;
+  document.getElementById('away-score').textContent = d.away_score;
+
+  // Possession
+  document.getElementById('poss-home').classList.toggle('show', d.home_possession === 1);
+  document.getElementById('poss-away').classList.toggle('show', d.home_possession === 0);
+
+  // Status strip
+  const strip = d.period
+    ? `${fmtPeriod(d.period)}  ·  ${fmtClock(d.clock)}`
+    : d.status;
+  document.getElementById('status-strip').textContent = strip;
+
+  // Stat cards
+  const diff = d.score_diff;
+  const diffEl = document.getElementById('stat-diff');
+  if (diff === 0) {
+    diffEl.textContent = 'TIED';
+    diffEl.className = 'stat-val plain';
+  } else {
+    diffEl.textContent = `${diff > 0 ? '+' : ''}${diff} ${diff > 0 ? d.home_team : d.away_team}`;
+    diffEl.className = `stat-val ${diff > 0 ? 'gold' : 'dim'}`;
+  }
+  document.getElementById('stat-clock').textContent = d.period ? fmtClock(d.clock) : '--:--';
+  document.getElementById('stat-period').textContent = fmtPeriod(d.period);
+
+  // Fouls
+  const threshold = (d.period||0) > 4 ? 4 : 5;
+  document.getElementById('foul-home-name').textContent = d.home_team;
+  document.getElementById('foul-away-name').textContent = d.away_team;
+  renderDots('foul-home-dots', d.home_fouls ?? 0, threshold);
+  renderDots('foul-away-dots', d.away_fouls ?? 0, threshold);
+  document.getElementById('bonus-home').classList.toggle('show', d.home_in_bonus === 1);
+  document.getElementById('bonus-away').classList.toggle('show', d.away_in_bonus === 1);
+
+  // Sparkline
+  probHistory.push(hp);
+  if (probHistory.length > 400) probHistory.shift();
+  drawSparkline();
+}
+
+// ── Game select / nav ──
+let currentGame = null;
+
+async function loadGames() {
+  const list = document.getElementById('game-list');
+  try {
+    const res  = await fetch(`${SERVER}/games`);
+    const data = await res.json();
+    list.innerHTML = '';
+    if (!data.length) {
+      list.innerHTML = '<p style="color:var(--muted);font-size:0.85rem">No games today.</p>';
+      return;
+    }
+    data.forEach(g => {
+      const card = document.createElement('div');
+      card.className = 'game-card';
+      card.innerHTML = `
+        <div class="matchup">${g.away_team} @ ${g.home_team}</div>
+        <div class="game-time">${g.status}</div>`;
+      card.onclick = () => selectGame(g);
+      list.appendChild(card);
+    });
+  } catch {
+    list.innerHTML = '<p style="color:var(--red);font-size:0.82rem">Cannot reach server — is server.py running on port 5001?</p>';
+  }
+}
+
+function selectGame(g) {
+  currentGame = g.game_id;
+  probHistory.length = 0;
+
+  // Pre-fill before first push arrives
+  document.getElementById('home-tri').textContent = g.home_team;
+  document.getElementById('away-tri').textContent = g.away_team;
+  document.getElementById('status-strip').textContent = g.status;
+  document.getElementById('foul-home-name').textContent = g.home_team;
+  document.getElementById('foul-away-name').textContent = g.away_team;
+  document.getElementById('home-prob-tag').textContent = `${g.home_team} Win`;
+  document.getElementById('away-prob-tag').textContent = `${g.away_team} Win`;
+
+  document.getElementById('game-select').style.display = 'none';
+  document.getElementById('dashboard').style.display  = 'flex';
+  updateGauge(0.5);
+  renderDots('foul-home-dots', 0, 5);
+  renderDots('foul-away-dots', 0, 5);
+
+  socket.emit('subscribe', { game_id: currentGame });
+}
+
+function goBack() {
+  if (currentGame) socket.emit('unsubscribe', { game_id: currentGame });
+  currentGame = null;
+  document.getElementById('dashboard').style.display  = 'none';
+  document.getElementById('game-select').style.display = 'flex';
+}
+
+// ── Socket.IO ──
+const socket = io(SERVER, { transports: ['websocket', 'polling'] });
+
+socket.on('connect', () => {
+  document.getElementById('live-dot').classList.add('on');
+  document.getElementById('conn-label').textContent = 'Live';
+});
+
+socket.on('disconnect', () => {
+  document.getElementById('live-dot').classList.remove('on');
+  document.getElementById('conn-label').textContent = 'Offline';
+});
+
+socket.on('game_update', applyUpdate);
+
+// ── Boot ──
+loadGames();
+window.addEventListener('resize', drawSparkline);
+</script>
+</body>
+</html>

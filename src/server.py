@@ -14,12 +14,13 @@ Usage:
     python server.py
 """
 
+import os
 import re
 import threading
 import time
 
 import requests
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_socketio import SocketIO, emit
 
 from predict import predict as model_predict
@@ -200,6 +201,8 @@ def _build_game_update(scoreboard_game: dict) -> dict:
         "home_possession": home_possession,
         "home_in_bonus": home_in_bonus,
         "away_in_bonus": away_in_bonus,
+        "home_fouls": state.get("home_fouls", 0),
+        "away_fouls": state.get("away_fouls", 0),
         "home_win_prob": win_prob,
         "away_win_prob": round(1 - win_prob, 4),
     }
@@ -239,6 +242,12 @@ def _poll_loop() -> None:
 # ---------------------------------------------------------------------------
 # REST endpoints
 # ---------------------------------------------------------------------------
+
+@app.route("/")
+def dashboard():
+    path = os.path.join(os.path.dirname(__file__), "..", "dashboard", "index.html")
+    return send_file(os.path.abspath(path))
+
 
 @app.route("/games")
 def games():
