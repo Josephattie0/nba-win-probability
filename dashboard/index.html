@@ -220,29 +220,22 @@
 
     .score-sep { color: var(--muted); margin: 0 3px; }
 
-    .poss-indicator {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      height: 18px;
-    }
-
-    .poss-label {
-      font-size: 0.5rem;
+    .poss-pill {
+      background: rgba(245,158,11,0.12);
+      border: 1px solid var(--gold);
+      border-radius: 20px;
+      padding: 3px 14px;
+      font-size: 0.72rem;
       font-weight: 700;
-      letter-spacing: 0.12em;
-      color: var(--border);
-    }
-
-    .poss-arrow {
-      font-size: 0.85rem;
+      letter-spacing: 0.1em;
       color: var(--gold);
-      text-shadow: 0 0 8px var(--gold);
+      text-shadow: 0 0 8px var(--gold-glow);
       opacity: 0;
       transition: opacity 0.3s;
+      white-space: nowrap;
     }
 
-    .poss-arrow.show { opacity: 1; }
+    .poss-pill.show { opacity: 1; }
 
     /* ── GAUGE ── */
     .gauge-wrap {
@@ -468,11 +461,7 @@
         <span class="score-sep">–</span>
         <span id="home-score">0</span>
       </div>
-      <div class="poss-indicator">
-        <span class="poss-arrow" id="poss-away">◀</span>
-        <span class="poss-label">BALL</span>
-        <span class="poss-arrow" id="poss-home">▶</span>
-      </div>
+      <div class="poss-pill" id="poss-pill">▶ BALL</div>
     </div>
     <div class="team home">
       <div class="team-badge">Home</div>
@@ -693,8 +682,9 @@ function applyUpdate(d) {
   document.getElementById('away-score').textContent = d.away_score;
 
   // Possession
-  document.getElementById('poss-home').classList.toggle('show', d.home_possession === 1);
-  document.getElementById('poss-away').classList.toggle('show', d.home_possession === 0);
+  const pill = document.getElementById('poss-pill');
+  pill.textContent = d.home_possession === 1 ? `▶ ${d.home_team}` : `${d.away_team} ◀`;
+  pill.classList.toggle('show', d.period > 0);
 
   // Status strip
   const strip = d.period
