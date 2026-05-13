@@ -187,6 +187,23 @@ def _build_game_update(scoreboard_game: dict) -> dict:
 
     win_prob = model_predict(score_diff, seconds_left, home_possession, home_in_bonus, away_in_bonus)
 
+    # Last 10 events for the play-by-play feed (skip blank descriptions)
+    feed = []
+    for a in actions[-10:]:
+        desc = str(a.get("description", "") or "").strip()
+        if not desc:
+            continue
+        feed.append({
+            "num":    int(a.get("actionNumber") or a.get("actionId") or 0),
+            "clock":  str(a.get("clock", "") or ""),
+            "period": int(a.get("period", 0) or 0),
+            "team":   str(a.get("teamTricode", "") or "").upper(),
+            "player": str(a.get("playerNameI", "") or ""),
+            "desc":   desc,
+            "type":   str(a.get("actionType", "") or "").lower(),
+            "result": str(a.get("shotResult", "") or "").lower(),
+        })
+
     return {
         "game_id": game_id,
         "status": scoreboard_game.get("gameStatusText", ""),
@@ -205,6 +222,7 @@ def _build_game_update(scoreboard_game: dict) -> dict:
         "away_fouls": state.get("away_fouls", 0),
         "home_win_prob": win_prob,
         "away_win_prob": round(1 - win_prob, 4),
+        "feed": feed,
     }
 
 
