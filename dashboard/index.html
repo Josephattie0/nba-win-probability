@@ -105,12 +105,14 @@
 
     /* Header */
     .header {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
       align-items: center;
-      justify-content: space-between;
       padding: 18px 20px 14px;
       border-bottom: 1px solid var(--border);
     }
+
+    .header .live-indicator { justify-self: end; }
 
     .header-title {
       font-family: 'Bebas Neue', sans-serif;
