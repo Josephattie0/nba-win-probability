@@ -262,7 +262,12 @@
 
     .prob-col { display: flex; flex-direction: column; gap: 1px; }
     .prob-col.away { align-items: flex-start; }
-    .prob-col.home { align-items: flex-end; }
+    .prob-col.home {
+      flex-direction: row;
+      align-items: baseline;
+      justify-content: flex-end;
+      gap: 8px;
+    }
 
     .prob-pct {
       font-family: 'Bebas Neue', sans-serif;
