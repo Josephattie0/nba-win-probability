@@ -769,7 +769,13 @@ function applyUpdate(d) {
   pill.textContent = d.home_possession === 1 ? `▶ ${d.home_team}` : `${d.away_team} ◀`;
   pill.classList.toggle('show', d.period > 0);
 
-  // Status strip
+  // Status strip + live indicator
+  const inProgress = d.period > 0 && d.period <= 8;
+  const dot = document.getElementById('live-dot');
+  const label = document.getElementById('conn-label');
+  dot.classList.toggle('on', inProgress);
+  label.textContent = inProgress ? 'Live' : 'Pre-Game';
+
   const strip = d.period
     ? `${fmtPeriod(d.period)}  ·  ${fmtClock(d.clock)}`
     : d.status;
@@ -907,8 +913,7 @@ function goBack() {
 const socket = io(SERVER, { transports: ['websocket', 'polling'] });
 
 socket.on('connect', () => {
-  document.getElementById('live-dot').classList.add('on');
-  document.getElementById('conn-label').textContent = 'Live';
+  document.getElementById('conn-label').textContent = 'Connected';
 });
 
 socket.on('disconnect', () => {
