@@ -627,39 +627,6 @@
     }
     .mode-btn.active { background: var(--gold); color: #000; }
 
-    .replay-input-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .replay-input-row input {
-      flex: 1;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      font-size: 0.85rem;
-      padding: 10px 14px;
-      outline: none;
-      transition: border-color 0.2s;
-      max-width: 220px;
-    }
-    .replay-input-row input:focus { border-color: var(--gold); }
-    .load-btn {
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 0.9rem;
-      letter-spacing: 0.1em;
-      padding: 10px 20px;
-      border-radius: 8px;
-      border: none;
-      background: var(--gold);
-      color: #000;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    .load-btn:hover { opacity: 0.85; }
-    .load-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ── REPLAY DASHBOARD ── */
     #replay-dash {
@@ -769,12 +736,11 @@
   </div>
 
   <div id="history-panel" style="display:none">
-    <div class="select-sub">Enter an NBA Game ID (e.g. 0022300061)</div>
-    <div class="replay-input-row">
-      <input type="text" id="replay-game-id" placeholder="0022300061" maxlength="12"/>
-      <button class="load-btn" id="load-replay-btn" onclick="startReplay()">Load Game</button>
+    <div class="select-sub">Select a recent game to replay</div>
+    <div id="recent-game-list">
+      <p style="color:var(--muted);font-size:0.85rem">Fetching recent games…</p>
     </div>
-    <p id="replay-load-error" style="color:var(--red);font-size:0.8rem;display:none"></p>
+    <p id="replay-load-error" style="color:var(--red);font-size:0.8rem;margin-top:8px;display:none"></p>
   </div>
 </div>
 
@@ -1274,24 +1240,52 @@ function renderStats() {
 }
 
 // ── Game select mode toggle ──
+let recentGamesLoaded = false;
+
 function setSelectMode(mode) {
   document.getElementById('btn-live').classList.toggle('active', mode === 'live');
   document.getElementById('btn-history').classList.toggle('active', mode === 'history');
   document.getElementById('live-panel').style.display    = mode === 'live'    ? '' : 'none';
   document.getElementById('history-panel').style.display = mode === 'history' ? '' : 'none';
+  if (mode === 'history' && !recentGamesLoaded) loadRecentGames();
+}
+
+async function loadRecentGames() {
+  const list = document.getElementById('recent-game-list');
+  try {
+    const res  = await fetch(`${SERVER}/recent-games`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    list.innerHTML = '';
+    if (!data.length) {
+      list.innerHTML = '<p style="color:var(--muted);font-size:0.85rem">No recent games found.</p>';
+      return;
+    }
+    recentGamesLoaded = true;
+    data.forEach(g => {
+      const card = document.createElement('div');
+      card.className = 'game-card';
+      card.innerHTML = `
+        <div class="matchup">${g.away_team} @ ${g.home_team}</div>
+        <div class="game-time">${g.away_score} – ${g.home_score} · ${g.date}</div>`;
+      card.onclick = () => startReplay(g.game_id, g);
+      list.appendChild(card);
+    });
+  } catch (e) {
+    list.innerHTML = `<p style="color:var(--red);font-size:0.82rem">Could not load recent games: ${e.message}</p>`;
+  }
 }
 
 // ── Historical Replay ──
 let replayData   = null;   // {plays, key_moments, home_team, away_team}
 let replayIdx    = 0;
 
-async function startReplay() {
-  const gid = document.getElementById('replay-game-id').value.trim();
-  if (!gid) return;
+async function startReplay(gid, gameInfo) {
   const errEl = document.getElementById('replay-load-error');
-  const btn   = document.getElementById('load-replay-btn');
+  // Show loading state on the clicked card
   errEl.style.display = 'none';
-  btn.disabled = true; btn.textContent = 'Loading…';
+  const cards = document.querySelectorAll('#recent-game-list .game-card');
+  cards.forEach(c => c.style.opacity = '0.4');
 
   try {
     const res  = await fetch(`${SERVER}/game/${gid}`);
@@ -1303,7 +1297,7 @@ async function startReplay() {
     document.getElementById('replay-title').textContent =
       `${data.away_team} @ ${data.home_team}`;
     document.getElementById('replay-status').textContent =
-      `${data.total_plays} plays`;
+      gameInfo ? `Final · ${gameInfo.date}` : `${data.total_plays} plays`;
 
     const slider = document.getElementById('replay-slider');
     slider.max   = data.plays.length - 1;
@@ -1314,10 +1308,10 @@ async function startReplay() {
     scrubReplay(0);
     loadCalibration();
   } catch (e) {
-    errEl.textContent = `Error: ${e.message}`;
+    errEl.textContent = `Failed to load game: ${e.message}`;
     errEl.style.display = '';
   } finally {
-    btn.disabled = false; btn.textContent = 'Load Game';
+    cards.forEach(c => c.style.opacity = '');
   }
 }
 

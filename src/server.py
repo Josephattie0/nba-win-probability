@@ -504,6 +504,60 @@ def predict_endpoint():
     return jsonify({"home_win_prob": prob, "away_win_prob": round(1 - prob, 4)})
 
 
+@app.route("/recent-games")
+def recent_games():
+    """Return the 15 most recently completed games across Playoffs + Regular Season."""
+    try:
+        from nba_api.stats.endpoints import LeagueGameLog
+        import pandas as pd
+
+        games: list[dict] = []
+        for stype in ("Playoffs", "Regular Season"):
+            log = LeagueGameLog(
+                season="2024-25",
+                season_type_all_star=stype,
+                direction="DESC",
+                sorter="DATE",
+            )
+            df = log.get_data_frames()[0]
+            if df.empty:
+                continue
+
+            # Group rows by GAME_ID; two rows per game (one per team)
+            seen: set[str] = set()
+            for gid, grp in df.groupby("GAME_ID", sort=False):
+                gid = str(gid)
+                if gid in seen:
+                    continue
+                seen.add(gid)
+
+                home_row = grp[grp["MATCHUP"].str.contains("vs\\.", regex=True)]
+                away_row = grp[grp["MATCHUP"].str.contains("@", regex=False)]
+                if home_row.empty or away_row.empty:
+                    continue
+
+                h, a = home_row.iloc[0], away_row.iloc[0]
+                date = str(h["GAME_DATE"]).split("T")[0]
+                games.append({
+                    "game_id":    gid,
+                    "date":       date,
+                    "home_team":  str(h["TEAM_ABBREVIATION"]),
+                    "away_team":  str(a["TEAM_ABBREVIATION"]),
+                    "home_score": int(h["PTS"]),
+                    "away_score": int(a["PTS"]),
+                    "status":     "Final",
+                })
+                if len(games) >= 15:
+                    break
+
+            if len(games) >= 15:
+                break
+
+        return jsonify(games)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/game/<game_id>")
 def get_game_replay(game_id):
     """
