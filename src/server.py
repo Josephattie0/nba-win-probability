@@ -166,16 +166,42 @@ def _build_game_update(scoreboard_game: dict) -> dict:
     home = scoreboard_game["homeTeam"]
     away = scoreboard_game["awayTeam"]
 
-    home_tri = home["teamTricode"]
-    away_tri = away["teamTricode"]
-    home_id  = int(home.get("teamId") or 0)
-    away_id  = int(away.get("teamId") or 0)
-    home_score = int(home.get("score") or 0)
-    away_score = int(away.get("score") or 0)
-    score_diff = home_score - away_score
-    period = int(scoreboard_game.get("period") or 0)
-    game_clock = scoreboard_game.get("gameClock", "")
+    home_tri    = home["teamTricode"]
+    away_tri    = away["teamTricode"]
+    home_id     = int(home.get("teamId") or 0)
+    away_id     = int(away.get("teamId") or 0)
+    home_score  = int(home.get("score") or 0)
+    away_score  = int(away.get("score") or 0)
+    score_diff  = home_score - away_score
+    period      = int(scoreboard_game.get("period") or 0)
+    game_clock  = scoreboard_game.get("gameClock", "")
+    game_status = int(scoreboard_game.get("gameStatus") or 1)
     seconds_left = _clock_to_seconds(game_clock, period) if period else 2880.0
+
+    # Game is final — skip the model and return the actual result
+    if game_status == 3:
+        home_won = score_diff > 0
+        return {
+            "game_id": game_id,
+            "status": scoreboard_game.get("gameStatusText", "Final"),
+            "game_status": 3,
+            "period": period,
+            "clock": game_clock,
+            "home_team": home_tri,
+            "away_team": away_tri,
+            "home_score": home_score,
+            "away_score": away_score,
+            "score_diff": score_diff,
+            "seconds_left": 0,
+            "home_possession": 0,
+            "home_in_bonus": 0,
+            "away_in_bonus": 0,
+            "home_fouls": 0,
+            "away_fouls": 0,
+            "home_win_prob": 1.0 if home_won else 0.0,
+            "away_win_prob": 0.0 if home_won else 1.0,
+            "feed": [],
+        }
 
     # Initialize per-game foul state on first call
     if game_id not in _game_state:
@@ -228,6 +254,7 @@ def _build_game_update(scoreboard_game: dict) -> dict:
     return {
         "game_id": game_id,
         "status": scoreboard_game.get("gameStatusText", ""),
+        "game_status": game_status,
         "period": period,
         "clock": game_clock,
         "home_team": home_tri,

@@ -770,15 +770,17 @@ function applyUpdate(d) {
   pill.classList.toggle('show', d.period > 0);
 
   // Status strip + live indicator
-  const inProgress = d.period > 0 && d.period <= 8;
+  const gs = d.game_status || 1;
   const dot = document.getElementById('live-dot');
   const label = document.getElementById('conn-label');
-  dot.classList.toggle('on', inProgress);
-  label.textContent = inProgress ? 'Live' : 'Pre-Game';
+  dot.classList.toggle('on', gs === 2);
+  label.textContent = gs === 3 ? 'Final' : gs === 2 ? 'Live' : 'Pre-Game';
 
-  const strip = d.period
-    ? `${fmtPeriod(d.period)}  ·  ${fmtClock(d.clock)}`
-    : d.status;
+  const strip = gs === 3
+    ? d.status
+    : d.period
+      ? `${fmtPeriod(d.period)}  ·  ${fmtClock(d.clock)}`
+      : d.status;
   document.getElementById('status-strip').textContent = strip;
 
   // Stat cards
