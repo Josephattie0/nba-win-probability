@@ -23,7 +23,9 @@ import requests
 from flask import Flask, jsonify, request, send_file
 from flask_socketio import SocketIO, emit
 
-from predict import predict as model_predict
+from predict import predict as model_predict, reset_game
+
+_calibration_cache: dict | None = None
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -208,6 +210,70 @@ def _possession_from_pbp(actions: list[dict], home_id: int) -> int:
     return 0
 
 
+def _compute_key_moments(actions: list[dict], home_id: int, away_id: int,
+                         home_tri: str, away_tri: str) -> list[dict]:
+    """
+    Scan CDN live PBP actions for lead changes and 6+ point runs.
+    Returns a list of {type, seconds_left, label, team} dicts.
+    """
+    moments: list[dict] = []
+    prev_sh = prev_sa = prev_diff = 0
+    run_team: str | None = None   # 'home' | 'away'
+    run_tri  = ""
+    run_pts  = 0
+    run_start_sl = 0.0
+
+    for action in actions:
+        sh = action.get("scoreHome")
+        sa = action.get("scoreAway")
+        if sh is None or sa is None:
+            continue
+        try:
+            sh, sa = int(sh), int(sa)
+        except (ValueError, TypeError):
+            continue
+
+        sl       = _clock_to_seconds(action.get("clock", ""),
+                                     int(action.get("period", 1) or 1))
+        home_pts = sh - prev_sh
+        away_pts = sa - prev_sa
+
+        if home_pts > 0:
+            scoring, pts, tri = "home", home_pts, home_tri
+        elif away_pts > 0:
+            scoring, pts, tri = "away", away_pts, away_tri
+        else:
+            prev_sh, prev_sa = sh, sa
+            continue
+
+        new_diff = sh - sa
+
+        # Lead change: sign of score_diff flips and neither endpoint is 0
+        if prev_diff != 0 and new_diff != 0 and (prev_diff > 0) != (new_diff > 0):
+            leader = home_tri if new_diff > 0 else away_tri
+            moments.append({"type": "lead_change", "seconds_left": sl,
+                            "label": f"{leader} takes lead",
+                            "team": "home" if new_diff > 0 else "away"})
+        prev_diff = new_diff
+
+        # Run tracking: reset when the other team scores
+        if scoring == run_team:
+            run_pts += pts
+        else:
+            if run_pts >= 6:   # commit completed run
+                moments.append({"type": "run", "seconds_left": run_start_sl,
+                                 "label": f"{run_tri} {run_pts}-0 run",
+                                 "team": run_team})
+            run_team, run_tri, run_pts, run_start_sl = scoring, tri, pts, sl
+
+        prev_sh, prev_sa = sh, sa
+
+    if run_pts >= 6:   # game ended during a run
+        moments.append({"type": "run", "seconds_left": run_start_sl,
+                         "label": f"{run_tri} {run_pts}-0 run", "team": run_team})
+    return moments
+
+
 def _build_game_update(scoreboard_game: dict) -> dict:
     """
     Build the full update payload for one game, merging scoreboard + live PBP.
@@ -267,9 +333,10 @@ def _build_game_update(scoreboard_game: dict) -> dict:
             "away_in_bonus": 0,
             "home_fouls": 0,
             "away_fouls": 0,
-            "home_win_prob": 1.0 if home_won else 0.0,
-            "away_win_prob": 0.0 if home_won else 1.0,
-            "feed": feed,
+            "home_win_prob":  1.0 if home_won else 0.0,
+            "away_win_prob":  0.0 if home_won else 1.0,
+            "feed":           feed,
+            "key_moments":    _compute_key_moments(actions, home_id, away_id, home_tri, away_tri),
         }
 
     # Initialise per-game state on first call
@@ -355,26 +422,29 @@ def _build_game_update(scoreboard_game: dict) -> dict:
             "result": str(a.get("shotResult", "") or "").lower(),
         })
 
+    key_moments = _compute_key_moments(actions, home_id, away_id, home_tri, away_tri)
+
     return {
-        "game_id": game_id,
-        "status": scoreboard_game.get("gameStatusText", ""),
-        "game_status": game_status,
-        "period": period,
-        "clock": game_clock,
-        "home_team": home_tri,
-        "away_team": away_tri,
-        "home_score": home_score,
-        "away_score": away_score,
-        "score_diff": score_diff,
-        "seconds_left": seconds_left,
+        "game_id":         game_id,
+        "status":          scoreboard_game.get("gameStatusText", ""),
+        "game_status":     game_status,
+        "period":          period,
+        "clock":           game_clock,
+        "home_team":       home_tri,
+        "away_team":       away_tri,
+        "home_score":      home_score,
+        "away_score":      away_score,
+        "score_diff":      score_diff,
+        "seconds_left":    seconds_left,
         "home_possession": home_possession,
-        "home_in_bonus": home_in_bonus,
-        "away_in_bonus": away_in_bonus,
-        "home_fouls": state.get("home_fouls", 0),
-        "away_fouls": state.get("away_fouls", 0),
-        "home_win_prob": win_prob,
-        "away_win_prob": round(1 - win_prob, 4),
-        "feed": feed,
+        "home_in_bonus":   home_in_bonus,
+        "away_in_bonus":   away_in_bonus,
+        "home_fouls":      state.get("home_fouls", 0),
+        "away_fouls":      state.get("away_fouls", 0),
+        "home_win_prob":   win_prob,
+        "away_win_prob":   round(1 - win_prob, 4),
+        "feed":            feed,
+        "key_moments":     key_moments,
     }
 
 
@@ -408,16 +478,181 @@ def games():
 
 @app.route("/predict", methods=["POST"])
 def predict_endpoint():
+    import uuid
     body = request.get_json(force=True)
     required = ["score_diff", "seconds_left", "home_possession", "home_in_bonus", "away_in_bonus"]
     missing = [k for k in required if k not in body]
     if missing:
         return jsonify({"error": f"Missing fields: {missing}"}), 400
+    gid = str(uuid.uuid4())
     prob = model_predict(
-        float(body["score_diff"]), float(body["seconds_left"]),
-        int(body["home_possession"]), int(body["home_in_bonus"]), int(body["away_in_bonus"]),
+        game_id=gid,
+        score_diff=float(body["score_diff"]),
+        seconds_left=float(body["seconds_left"]),
+        home_possession=int(body["home_possession"]),
+        home_in_bonus=int(body["home_in_bonus"]),
+        away_in_bonus=int(body["away_in_bonus"]),
+        home_timeouts=int(body.get("home_timeouts", 7)),
+        away_timeouts=int(body.get("away_timeouts", 7)),
+        home_fg_pct=float(body.get("home_fg_pct", 0.0)),
+        away_fg_pct=float(body.get("away_fg_pct", 0.0)),
+        home_foul_trouble=int(body.get("home_foul_trouble", 0)),
+        away_foul_trouble=int(body.get("away_foul_trouble", 0)),
+        momentum=float(body.get("momentum", 0.0)),
     )
+    reset_game(gid)
     return jsonify({"home_win_prob": prob, "away_win_prob": round(1 - prob, 4)})
+
+
+@app.route("/game/<game_id>")
+def get_game_replay(game_id):
+    """
+    Historical replay: fetch full play-by-play via nba_api PlayByPlayV3,
+    run every play through the feature pipeline + GRU model, and return the
+    complete win-probability curve with key moments.
+    """
+    try:
+        from nba_api.stats.endpoints import PlayByPlayV3
+        raw = PlayByPlayV3(game_id=game_id).get_data_frames()[0]
+    except Exception as e:
+        return jsonify({"error": f"Could not fetch play-by-play for {game_id}: {e}"}), 404
+
+    try:
+        from features import build_features, FEATURES, _infer_teams, _parse_scores, _parse_clock, _seconds_left as sl_fn
+        import pandas as pd
+        df = build_features(raw)
+    except Exception as e:
+        return jsonify({"error": f"Feature pipeline failed: {e}"}), 500
+
+    # Infer team names for key moment labels
+    raw_lower = raw.copy()
+    raw_lower.columns = [c.lower() for c in raw_lower.columns]
+    home_team, away_team, _, _ = _infer_teams(raw_lower)
+
+    # Run model on each play in sequence using a temporary rolling window
+    replay_id = f"__replay_{game_id}"
+    reset_game(replay_id)
+
+    # Also keep raw score for each row (not in FEATURES)
+    _parse_scores(raw_lower)
+    _parse_clock(raw_lower)
+    raw_lower["seconds_left_raw"] = raw_lower.apply(sl_fn, axis=1)
+
+    plays = []
+    for i, row in df.iterrows():
+        prob = model_predict(
+            game_id=replay_id,
+            score_diff=float(row["score_diff"]),
+            seconds_left=float(row["seconds_left"]),
+            home_possession=int(row["home_possession"]),
+            home_in_bonus=int(row["home_in_bonus"]),
+            away_in_bonus=int(row["away_in_bonus"]),
+            home_timeouts=int(row["home_timeouts"]),
+            away_timeouts=int(row["away_timeouts"]),
+            home_fg_pct=float(row["home_fg_pct"]),
+            away_fg_pct=float(row["away_fg_pct"]),
+            home_foul_trouble=int(row["home_foul_trouble"]),
+            away_foul_trouble=int(row["away_foul_trouble"]),
+            momentum=float(row["momentum"]),
+        )
+        # Find matching raw row for description + score
+        an = int(row["actionnumber"])
+        raw_match = raw_lower[raw_lower["actionnumber"] == an]
+        desc = ""
+        home_sc = away_sc = 0
+        if not raw_match.empty:
+            r = raw_match.iloc[0]
+            desc    = str(r.get("description", "") or "")
+            home_sc = int(r.get("home_score", 0) or 0)
+            away_sc = int(r.get("away_score", 0) or 0)
+
+        plays.append({
+            "action_number":  an,
+            "seconds_left":   float(row["seconds_left"]),
+            "period":         int(raw_lower[raw_lower["actionnumber"] == an]["period"].iloc[0]) if not raw_match.empty else 0,
+            "home_win_prob":  prob,
+            "away_win_prob":  round(1 - prob, 4),
+            "score_diff":     int(row["score_diff"]),
+            "home_score":     home_sc,
+            "away_score":     away_sc,
+            "description":    desc,
+        })
+
+    reset_game(replay_id)
+
+    # Key moments from score progression
+    key_moments: list[dict] = []
+    prev_sh = prev_sa = prev_diff = 0
+    run_team: str | None = None
+    run_tri = run_pts = 0
+    run_sl = 0.0
+
+    for p in plays:
+        sh, sa, sl = p["home_score"], p["away_score"], p["seconds_left"]
+        hpts, apts = sh - prev_sh, sa - prev_sa
+
+        if hpts > 0:
+            scoring, pts, tri = "home", hpts, home_team
+        elif apts > 0:
+            scoring, pts, tri = "away", apts, away_team
+        else:
+            prev_sh, prev_sa = sh, sa
+            continue
+
+        nd = sh - sa
+        if prev_diff != 0 and nd != 0 and (prev_diff > 0) != (nd > 0):
+            leader = home_team if nd > 0 else away_team
+            key_moments.append({"type": "lead_change", "seconds_left": sl,
+                                 "label": f"{leader} takes lead",
+                                 "team": "home" if nd > 0 else "away"})
+        prev_diff = nd
+
+        if scoring == run_team:
+            run_pts += pts
+        else:
+            if run_pts >= 6:
+                key_moments.append({"type": "run", "seconds_left": run_sl,
+                                     "label": f"{run_tri} {run_pts}-0 run",
+                                     "team": run_team})
+            run_team, run_tri, run_pts, run_sl = scoring, tri, pts, sl
+        prev_sh, prev_sa = sh, sa
+
+    if run_pts >= 6:
+        key_moments.append({"type": "run", "seconds_left": run_sl,
+                             "label": f"{run_tri} {run_pts}-0 run", "team": run_team})
+
+    return jsonify({
+        "home_team":   home_team,
+        "away_team":   away_team,
+        "plays":       plays,
+        "key_moments": key_moments,
+        "total_plays": len(plays),
+    })
+
+
+@app.route("/calibration")
+def get_calibration():
+    """
+    Compute or return cached model calibration curve.
+    Samples 5000 rows from the training CSV, runs predictions,
+    bins into 10 buckets, and returns {buckets, summary}.
+    """
+    global _calibration_cache
+    if _calibration_cache is not None:
+        return jsonify(_calibration_cache)
+
+    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+    csv_path = os.path.join(data_dir, "play_by_play.csv")
+    if not os.path.exists(csv_path):
+        return jsonify({"error": "No training data found — run collect.py first."}), 404
+
+    try:
+        from predict import calibrate_model
+        result = calibrate_model(csv_path)
+        _calibration_cache = result
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/boxscore/<game_id>")

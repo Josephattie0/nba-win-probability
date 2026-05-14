@@ -150,6 +150,81 @@ def predict(
 
 
 # ---------------------------------------------------------------------------
+# Calibration helper
+# ---------------------------------------------------------------------------
+
+def calibrate_model(csv_path: str, sample_n: int = 5000) -> dict:
+    """
+    Sample plays from the training CSV, run batched GRU predictions on
+    zero-padded single-step sequences, bin into 10 buckets, and return
+    calibration data + a human-readable summary.
+    """
+    global _model, _mean, _std
+    if _model is None:
+        _load()
+
+    import pandas as pd
+    from features import FEATURES
+
+    df = pd.read_csv(csv_path)
+    if "home_win" not in df.columns or not all(f in df.columns for f in FEATURES):
+        raise ValueError("CSV is missing required columns — re-run collect.py first.")
+
+    sample = df.sample(n=min(sample_n, len(df)), random_state=42).reset_index(drop=True)
+    feats  = sample[FEATURES].values.astype(np.float32)
+    labels = sample["home_win"].values.astype(np.float32)
+    norm   = (feats - _mean) / _std
+
+    # Zero-pad each row to SEQ_LEN → (n, SEQ_LEN, n_features)
+    preds, batch_sz = [], 512
+    _model.eval()
+    for i in range(0, len(norm), batch_sz):
+        chunk = norm[i : i + batch_sz]
+        n     = len(chunk)
+        pad   = np.zeros((n, SEQ_LEN - 1, norm.shape[1]), dtype=np.float32)
+        seqs  = np.concatenate([pad, chunk[:, np.newaxis, :]], axis=1)
+        with torch.no_grad():
+            p = _model(torch.from_numpy(seqs)).numpy()
+        preds.extend(p.tolist())
+
+    preds = np.array(preds)
+
+    buckets = []
+    for i in range(10):
+        lo, hi = i * 0.1, (i + 1) * 0.1
+        mask = (preds >= lo) & (preds < hi)
+        if not mask.any():
+            continue
+        buckets.append({
+            "midpoint":  round((lo + hi) / 2, 2),
+            "predicted": round(float(preds[mask].mean()), 3),
+            "actual":    round(float(labels[mask].mean()), 3),
+            "count":     int(mask.sum()),
+        })
+
+    devs      = [b["predicted"] - b["actual"] for b in buckets]
+    max_dev   = max(abs(d) for d in devs) if devs else 0
+    avg_dev   = sum(devs) / len(devs) if devs else 0
+    close_b   = [b for b in buckets if 0.35 <= b["midpoint"] <= 0.65]
+    close_dev = (sum(b["predicted"] - b["actual"] for b in close_b) / len(close_b)
+                 if close_b else 0)
+
+    if max_dev < 0.05:
+        summary = "Model is well calibrated"
+    elif max_dev < 0.10:
+        summary = ("Slightly overconfident in close games" if close_dev > 0.03
+                   else "Slightly underconfident in close games" if close_dev < -0.03
+                   else "Slightly overconfident overall" if avg_dev > 0
+                   else "Slightly underconfident overall")
+    else:
+        summary = ("Significantly overconfident in close games" if close_dev > 0.05
+                   else "Significantly underconfident in close games" if close_dev < -0.05
+                   else "Significant calibration error — consider retraining")
+
+    return {"buckets": buckets, "summary": summary}
+
+
+# ---------------------------------------------------------------------------
 # Quick manual test
 # ---------------------------------------------------------------------------
 

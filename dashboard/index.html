@@ -603,6 +603,152 @@
     .stats-table td:first-child { text-align: left; padding-left: 14px; color: var(--text); font-weight: 500; }
     .stats-table td.pts { color: var(--gold); font-weight: 700; }
     .stats-empty { padding: 18px 14px; font-size: 0.75rem; color: var(--muted); }
+
+    /* ── MODE TOGGLE (game select) ── */
+    .mode-toggle {
+      display: flex;
+      gap: 6px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 4px;
+    }
+    .mode-btn {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+      padding: 7px 22px;
+      border-radius: 7px;
+      border: none;
+      background: none;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .mode-btn.active { background: var(--gold); color: #000; }
+
+    .replay-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .replay-input-row input {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.85rem;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      max-width: 220px;
+    }
+    .replay-input-row input:focus { border-color: var(--gold); }
+    .load-btn {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      background: var(--gold);
+      color: #000;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .load-btn:hover { opacity: 0.85; }
+    .load-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── REPLAY DASHBOARD ── */
+    #replay-dash {
+      display: none;
+      flex-direction: column;
+      width: 100%;
+      max-width: 1140px;
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+
+    .replay-chart-wrap {
+      margin: 16px 20px 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 14px;
+    }
+
+    #replay-canvas { width: 100%; height: 160px; display: block; }
+
+    .replay-controls {
+      margin: 10px 20px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #replay-slider {
+      width: 100%;
+      accent-color: var(--gold);
+      cursor: pointer;
+    }
+
+    .replay-info {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .replay-score {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .replay-desc {
+      font-size: 0.78rem;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+
+    .replay-meta {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* ── CALIBRATION ── */
+    .calibration-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 14px;
+    }
+
+    #calibration-canvas { width: 100%; height: 120px; display: block; margin: 8px 0 6px; }
+
+    .calibration-summary {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .calibration-summary.good { color: var(--green); }
+    .calibration-summary.warn { color: var(--gold); }
+    .calibration-summary.bad  { color: var(--red); }
   </style>
 </head>
 <body>
@@ -610,9 +756,52 @@
 <!-- ── GAME SELECT ── -->
 <div id="game-select">
   <div class="select-title">NBA Win Probability</div>
-  <div class="select-sub">Select a game to track</div>
-  <div id="game-list">
-    <p style="color:var(--muted);font-size:0.85rem">Fetching today's games…</p>
+  <div class="mode-toggle">
+    <button class="mode-btn active" id="btn-live"    onclick="setSelectMode('live')">Live Games</button>
+    <button class="mode-btn"        id="btn-history" onclick="setSelectMode('history')">Historical Replay</button>
+  </div>
+
+  <div id="live-panel">
+    <div class="select-sub">Select a game to track</div>
+    <div id="game-list">
+      <p style="color:var(--muted);font-size:0.85rem">Fetching today's games…</p>
+    </div>
+  </div>
+
+  <div id="history-panel" style="display:none">
+    <div class="select-sub">Enter an NBA Game ID (e.g. 0022300061)</div>
+    <div class="replay-input-row">
+      <input type="text" id="replay-game-id" placeholder="0022300061" maxlength="12"/>
+      <button class="load-btn" id="load-replay-btn" onclick="startReplay()">Load Game</button>
+    </div>
+    <p id="replay-load-error" style="color:var(--red);font-size:0.8rem;display:none"></p>
+  </div>
+</div>
+
+<!-- ── REPLAY DASHBOARD ── -->
+<div id="replay-dash">
+  <div class="header">
+    <button class="back-btn" onclick="goBackFromReplay()">← Games</button>
+    <div class="header-title" id="replay-title">Game Replay</div>
+    <div></div>
+  </div>
+  <div class="status-strip" id="replay-status">--</div>
+
+  <div class="replay-chart-wrap">
+    <div class="section-label">Win Probability — Full Game</div>
+    <canvas id="replay-canvas"></canvas>
+  </div>
+
+  <div class="replay-controls">
+    <input type="range" id="replay-slider" min="0" max="100" value="0"
+           oninput="scrubReplay(+this.value)">
+    <div class="replay-info">
+      <div class="replay-score" id="replay-score">0 – 0</div>
+      <div>
+        <div class="replay-desc" id="replay-desc">—</div>
+        <div class="replay-meta" id="replay-meta">—</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -732,6 +921,12 @@
         <canvas id="sparkline"></canvas>
       </div>
 
+      <div class="calibration-card">
+        <div class="section-label">Model Calibration</div>
+        <canvas id="calibration-canvas"></canvas>
+        <div class="calibration-summary" id="calibration-summary">Loading…</div>
+      </div>
+
     </div><!-- .left-col -->
 
     <!-- RIGHT: player stats + play-by-play -->
@@ -819,7 +1014,16 @@ function updateGauge(homeProb) {
 }
 
 // ── Sparkline ──
+// Each entry: {prob, seconds} — seconds_left at push time for annotation alignment
 const probHistory = [];
+let currentKeyMoments = [];
+
+function secondsToSparkX(sl, pts, W) {
+  if (pts.length < 2) return -1;
+  const maxS = pts[0].seconds, minS = pts[pts.length - 1].seconds;
+  if (maxS === minS) return -1;
+  return ((maxS - sl) / (maxS - minS)) * W;
+}
 
 function drawSparkline() {
   const canvas = document.getElementById('sparkline');
@@ -830,44 +1034,63 @@ function drawSparkline() {
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, W, H);
 
-  // 50% dashed guide
-  ctx.strokeStyle = '#1e1e1e';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 5]);
+  // 50% guide
+  ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
   ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
   ctx.setLineDash([]);
 
   if (probHistory.length < 2) return;
-
-  const pts = probHistory;
-  const step = W / (pts.length - 1);
+  const step = W / (probHistory.length - 1);
 
   // Gradient fill
   const grad = ctx.createLinearGradient(0, 0, 0, H);
   grad.addColorStop(0, 'rgba(245,158,11,0.28)');
   grad.addColorStop(1, 'rgba(245,158,11,0)');
   ctx.beginPath();
-  pts.forEach((v, i) => {
-    const x = i * step, y = H - v * H;
+  probHistory.forEach(({prob}, i) => {
+    const x = i * step, y = H - prob * H;
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
-  ctx.lineTo((pts.length-1)*step, H); ctx.lineTo(0, H); ctx.closePath();
+  ctx.lineTo((probHistory.length-1)*step, H); ctx.lineTo(0, H); ctx.closePath();
   ctx.fillStyle = grad; ctx.fill();
 
   // Line
   ctx.beginPath();
   ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
-  pts.forEach((v, i) => {
-    const x = i * step, y = H - v * H;
+  probHistory.forEach(({prob}, i) => {
+    const x = i * step, y = H - prob * H;
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
   ctx.stroke();
 
   // End dot
-  const lx = (pts.length-1)*step, ly = H - pts[pts.length-1]*H;
+  const last = probHistory[probHistory.length - 1];
+  const lx = (probHistory.length-1)*step, ly = H - last.prob * H;
   ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI*2);
   ctx.fillStyle = '#f59e0b'; ctx.fill();
   ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Key moment annotations
+  for (const km of currentKeyMoments) {
+    const x = secondsToSparkX(km.seconds_left, probHistory, W);
+    if (x < 0 || x > W) continue;
+    if (km.type === 'lead_change') {
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(x, 2); ctx.lineTo(x, H - 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.font = '7px Inter,sans-serif';
+      ctx.fillText('LC', x + 2, 10);
+    } else if (km.type === 'run') {
+      const col = km.team === 'home' ? '#3b82f6' : '#ef4444';
+      // Find the y position at this x
+      const idx = Math.round(x / step);
+      const yp = probHistory[Math.min(idx, probHistory.length - 1)].prob;
+      ctx.beginPath(); ctx.arc(x, H - yp * H, 4, 0, Math.PI * 2);
+      ctx.fillStyle = col; ctx.fill();
+    }
+  }
 }
 
 // ── Foul dots ──
@@ -953,9 +1176,10 @@ function applyUpdate(d) {
   document.getElementById('bonus-home').classList.toggle('show', d.home_in_bonus === 1);
   document.getElementById('bonus-away').classList.toggle('show', d.away_in_bonus === 1);
 
-  // Sparkline
-  probHistory.push(hp);
+  // Sparkline + key moments
+  probHistory.push({prob: hp, seconds: d.seconds_left ?? 0});
   if (probHistory.length > 400) probHistory.shift();
+  if (d.key_moments) currentKeyMoments = d.key_moments;
   drawSparkline();
 
   // Play by play
@@ -1049,6 +1273,244 @@ function renderStats() {
   });
 }
 
+// ── Game select mode toggle ──
+function setSelectMode(mode) {
+  document.getElementById('btn-live').classList.toggle('active', mode === 'live');
+  document.getElementById('btn-history').classList.toggle('active', mode === 'history');
+  document.getElementById('live-panel').style.display    = mode === 'live'    ? '' : 'none';
+  document.getElementById('history-panel').style.display = mode === 'history' ? '' : 'none';
+}
+
+// ── Historical Replay ──
+let replayData   = null;   // {plays, key_moments, home_team, away_team}
+let replayIdx    = 0;
+
+async function startReplay() {
+  const gid = document.getElementById('replay-game-id').value.trim();
+  if (!gid) return;
+  const errEl = document.getElementById('replay-load-error');
+  const btn   = document.getElementById('load-replay-btn');
+  errEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Loading…';
+
+  try {
+    const res  = await fetch(`${SERVER}/game/${gid}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    replayData = data;
+    replayIdx  = 0;
+
+    document.getElementById('replay-title').textContent =
+      `${data.away_team} @ ${data.home_team}`;
+    document.getElementById('replay-status').textContent =
+      `${data.total_plays} plays`;
+
+    const slider = document.getElementById('replay-slider');
+    slider.max   = data.plays.length - 1;
+    slider.value = 0;
+
+    document.getElementById('game-select').style.display  = 'none';
+    document.getElementById('replay-dash').style.display  = 'flex';
+    scrubReplay(0);
+    loadCalibration();
+  } catch (e) {
+    errEl.textContent = `Error: ${e.message}`;
+    errEl.style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Load Game';
+  }
+}
+
+function scrubReplay(idx) {
+  if (!replayData) return;
+  replayIdx = +idx;
+  const play = replayData.plays[replayIdx];
+  if (!play) return;
+
+  const { home_team, away_team } = replayData;
+  const homeScore = Math.round((play.score_diff + play.home_score + play.away_score) / 2 + play.score_diff / 2);
+  // score_diff = home - away, so home = away + diff
+  const away = play.away_score, home = away + play.score_diff;
+  document.getElementById('replay-score').textContent = `${away} – ${home}`;
+  document.getElementById('replay-score').title = `${away_team} – ${home_team}`;
+
+  const sl   = play.seconds_left;
+  const mins = Math.floor(sl / 60), secs = Math.floor(sl % 60);
+  const per  = play.period <= 4 ? `Q${play.period}` : 'OT';
+  document.getElementById('replay-meta').textContent =
+    `${per}  ·  ${mins}:${String(secs).padStart(2,'0')} left  ·  Home: ${Math.round(play.home_win_prob*100)}%  Away: ${Math.round(play.away_win_prob*100)}%`;
+  document.getElementById('replay-desc').textContent = play.description || '—';
+
+  drawReplayChart(replayIdx);
+}
+
+function drawReplayChart(currentIdx) {
+  const canvas = document.getElementById('replay-canvas');
+  if (!canvas || !replayData) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  const plays = replayData.plays;
+  if (plays.length < 2) return;
+  const step = W / (plays.length - 1);
+
+  // 50% guide
+  ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 1; ctx.setLineDash([4, 5]);
+  ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Full-game dim curve
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(245,158,11,0.15)'; ctx.lineWidth = 1.5;
+  plays.forEach(({home_win_prob: p}, i) => {
+    i === 0 ? ctx.moveTo(i*step, H - p*H) : ctx.lineTo(i*step, H - p*H);
+  });
+  ctx.stroke();
+
+  // Seen-so-far gradient + line
+  const seenPlays = plays.slice(0, currentIdx + 1);
+  if (seenPlays.length >= 2) {
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, 'rgba(245,158,11,0.28)');
+    grad.addColorStop(1, 'rgba(245,158,11,0)');
+    ctx.beginPath();
+    seenPlays.forEach(({home_win_prob: p}, i) => {
+      i === 0 ? ctx.moveTo(i*step, H - p*H) : ctx.lineTo(i*step, H - p*H);
+    });
+    ctx.lineTo((seenPlays.length-1)*step, H); ctx.lineTo(0, H); ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill();
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    seenPlays.forEach(({home_win_prob: p}, i) => {
+      i === 0 ? ctx.moveTo(i*step, H - p*H) : ctx.lineTo(i*step, H - p*H);
+    });
+    ctx.stroke();
+  }
+
+  // Key moments
+  const totalSec = plays[0].seconds_left || 2880;
+  for (const km of (replayData.key_moments || [])) {
+    const kmIdx = plays.findIndex(p => p.seconds_left <= km.seconds_left);
+    if (kmIdx < 0) continue;
+    const x = kmIdx * step;
+    if (km.type === 'lead_change') {
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1; ctx.setLineDash([2,3]);
+      ctx.beginPath(); ctx.moveTo(x, 2); ctx.lineTo(x, H-2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '7px Inter,sans-serif';
+      ctx.fillText('LC', x+2, 10);
+    } else {
+      const col = km.team === 'home' ? '#3b82f6' : '#ef4444';
+      const y = H - plays[kmIdx].home_win_prob * H;
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2);
+      ctx.fillStyle = col; ctx.fill();
+    }
+  }
+
+  // Current position line
+  const cx = currentIdx * step;
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
+  const cp = plays[currentIdx].home_win_prob;
+  ctx.beginPath(); ctx.arc(cx, H - cp*H, 5, 0, Math.PI*2);
+  ctx.fillStyle = '#fff'; ctx.fill();
+}
+
+function goBackFromReplay() {
+  replayData = null;
+  document.getElementById('replay-dash').style.display  = 'none';
+  document.getElementById('game-select').style.display  = 'flex';
+}
+
+// ── Calibration ──
+let calibrationLoaded = false;
+
+async function loadCalibration() {
+  if (calibrationLoaded) return;
+  try {
+    const res  = await fetch(`${SERVER}/calibration`);
+    const data = await res.json();
+    if (data.error) { renderCalibrationError(data.error); return; }
+    calibrationLoaded = true;
+    window._lastCalBuckets = data.buckets;
+    renderCalibrationChart(data.buckets);
+    const sumEl = document.getElementById('calibration-summary');
+    sumEl.textContent = data.summary;
+    sumEl.className   = 'calibration-summary ' +
+      (data.summary.includes('well') ? 'good' :
+       data.summary.includes('Slightly') ? 'warn' : 'bad');
+  } catch (e) {
+    renderCalibrationError('Could not load calibration data.');
+  }
+}
+
+function renderCalibrationError(msg) {
+  const el = document.getElementById('calibration-summary');
+  if (el) { el.textContent = msg; el.className = 'calibration-summary bad'; }
+}
+
+function renderCalibrationChart(buckets) {
+  const canvas = document.getElementById('calibration-canvas');
+  if (!canvas || !buckets || !buckets.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { t: 8, r: 8, b: 20, l: 28 };
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+
+  function tx(v) { return pad.l + v * cW; }
+  function ty(v) { return pad.t + (1 - v) * cH; }
+
+  // Axes
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + cH);
+  ctx.lineTo(pad.l + cW, pad.t + cH); ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle = '#4b5563'; ctx.font = '8px Inter,sans-serif'; ctx.textAlign = 'right';
+  ['0', '.5', '1'].forEach((lbl, i) => {
+    ctx.fillText(lbl, pad.l - 3, ty(i * 0.5) + 3);
+  });
+  ctx.textAlign = 'center';
+  ['0', '.5', '1'].forEach((lbl, i) => {
+    ctx.fillText(lbl, tx(i * 0.5), pad.t + cH + 12);
+  });
+
+  // Perfect calibration diagonal
+  ctx.strokeStyle = '#374151'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(tx(0), ty(0)); ctx.lineTo(tx(1), ty(1)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Model curve
+  const sorted = [...buckets].sort((a,b) => a.midpoint - b.midpoint);
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  sorted.forEach(({midpoint: mp, actual: ac}, i) => {
+    i === 0 ? ctx.moveTo(tx(mp), ty(ac)) : ctx.lineTo(tx(mp), ty(ac));
+  });
+  ctx.stroke();
+
+  // Dots
+  sorted.forEach(({midpoint: mp, actual: ac}) => {
+    ctx.beginPath(); ctx.arc(tx(mp), ty(ac), 3, 0, Math.PI*2);
+    ctx.fillStyle = '#f59e0b'; ctx.fill();
+  });
+
+  // Legend
+  ctx.fillStyle = '#4b5563'; ctx.font = '7px Inter,sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('— perfect', tx(0.02), ty(0.94));
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillText('— model', tx(0.02), ty(0.84));
+}
+
 // ── Game select / nav ──
 let currentGame = null;
 
@@ -1079,6 +1541,7 @@ async function loadGames() {
 function selectGame(g) {
   currentGame = g.game_id;
   probHistory.length = 0;
+  currentKeyMoments = [];
   lastFeedNum = -1;
   document.getElementById('pbp-feed').innerHTML =
     '<div class="pbp-empty">Live plays will appear here once the game starts.</div>';
@@ -1105,6 +1568,9 @@ function selectGame(g) {
   fetchBoxscore();
   if (boxscoreTimer) clearInterval(boxscoreTimer);
   boxscoreTimer = setInterval(fetchBoxscore, 30000);
+
+  // Load calibration once per session
+  loadCalibration();
 }
 
 function goBack() {
@@ -1132,7 +1598,11 @@ socket.on('game_update', applyUpdate);
 
 // ── Boot ──
 loadGames();
-window.addEventListener('resize', drawSparkline);
+window.addEventListener('resize', () => {
+  drawSparkline();
+  renderCalibrationChart(window._lastCalBuckets);
+  if (replayData) drawReplayChart(replayIdx);
+});
 </script>
 </body>
 </html>
