@@ -98,10 +98,34 @@
       display: none;
       flex-direction: column;
       width: 100%;
-      max-width: 580px;
+      max-width: 1140px;
       min-height: 100vh;
       padding-bottom: 40px;
     }
+
+    /* ── TWO-COLUMN SECTION ── */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 12px;
+      padding: 0 20px;
+      align-items: start;
+      width: 100%;
+    }
+
+    .left-col, .right-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+      padding-top: 14px;
+    }
+
+    /* Strip horizontal margins from cards inside columns */
+    .left-col .stat-row   { padding: 0; }
+    .left-col .foul-card,
+    .left-col .timeline-card,
+    .right-col .pbp-card  { margin: 0; }
 
     /* Header */
     .header {
@@ -497,6 +521,88 @@
       font-size: 0.75rem;
       color: var(--muted);
     }
+
+    /* ── PLAYER STATS ── */
+    .player-stats-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .stats-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 14px 11px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .team-toggle { display: flex; gap: 5px; }
+
+    .toggle-btn {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      padding: 4px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+
+    .toggle-btn.active {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: #000;
+    }
+
+    .stats-table-wrap {
+      max-height: 240px;
+      overflow-y: auto;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .stats-table-wrap::-webkit-scrollbar { display: none; }
+
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.7rem;
+    }
+
+    .stats-table th {
+      position: sticky;
+      top: 0;
+      background: var(--card);
+      padding: 6px 8px;
+      text-align: right;
+      font-size: 0.56rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .stats-table th:first-child { text-align: left; padding-left: 14px; }
+
+    .stats-table td {
+      padding: 7px 8px;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+
+    .stats-table tbody tr:last-child td { border-bottom: none; }
+    .stats-table td:first-child { text-align: left; padding-left: 14px; color: var(--text); font-weight: 500; }
+    .stats-table td.pts { color: var(--gold); font-weight: 700; }
+    .stats-empty { padding: 18px 14px; font-size: 0.75rem; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -583,53 +689,95 @@
     </div>
   </div>
 
-  <!-- Stat cards -->
-  <div class="stat-row">
-    <div class="stat-card">
-      <div class="stat-label">Score Diff</div>
-      <div class="stat-val plain" id="stat-diff">--</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Time Left</div>
-      <div class="stat-val plain" id="stat-clock">--</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Period</div>
-      <div class="stat-val plain" id="stat-period">--</div>
-    </div>
-  </div>
+  <!-- Two-column section -->
+  <div class="two-col">
 
-  <!-- Foul tracker -->
-  <div class="foul-card">
-    <div class="section-label">Foul Tracker</div>
-    <div class="foul-grid">
-      <div class="foul-team away">
-        <div class="foul-team-name" id="foul-away-name">AWAY</div>
-        <div class="foul-dots" id="foul-away-dots"></div>
-        <div class="bonus-tag" id="bonus-away">In Bonus</div>
+    <!-- LEFT: stat cards + foul tracker + sparkline -->
+    <div class="left-col">
+
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-label">Score Diff</div>
+          <div class="stat-val plain" id="stat-diff">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Time Left</div>
+          <div class="stat-val plain" id="stat-clock">--</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Period</div>
+          <div class="stat-val plain" id="stat-period">--</div>
+        </div>
       </div>
-      <div class="foul-sep"></div>
-      <div class="foul-team home">
-        <div class="foul-team-name" id="foul-home-name">HOME</div>
-        <div class="foul-dots" id="foul-home-dots"></div>
-        <div class="bonus-tag" id="bonus-home">In Bonus</div>
+
+      <div class="foul-card">
+        <div class="section-label">Foul Tracker</div>
+        <div class="foul-grid">
+          <div class="foul-team away">
+            <div class="foul-team-name" id="foul-away-name">AWAY</div>
+            <div class="foul-dots" id="foul-away-dots"></div>
+            <div class="bonus-tag" id="bonus-away">In Bonus</div>
+          </div>
+          <div class="foul-sep"></div>
+          <div class="foul-team home">
+            <div class="foul-team-name" id="foul-home-name">HOME</div>
+            <div class="foul-dots" id="foul-home-dots"></div>
+            <div class="bonus-tag" id="bonus-home">In Bonus</div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Timeline -->
-  <div class="timeline-card">
-    <div class="section-label">Win Probability Timeline</div>
-    <canvas id="sparkline"></canvas>
-  </div>
+      <div class="timeline-card">
+        <div class="section-label">Win Probability Timeline</div>
+        <canvas id="sparkline"></canvas>
+      </div>
 
-  <!-- Play by play -->
-  <div class="pbp-card">
-    <div class="pbp-header section-label">Play by Play</div>
-    <div class="pbp-feed" id="pbp-feed">
-      <div class="pbp-empty">Live plays will appear here once the game starts.</div>
-    </div>
-  </div>
+    </div><!-- .left-col -->
+
+    <!-- RIGHT: player stats + play-by-play -->
+    <div class="right-col">
+
+      <!-- Player stats -->
+      <div class="player-stats-card">
+        <div class="stats-header">
+          <span class="section-label" style="margin-bottom:0">Player Stats</span>
+          <div class="team-toggle">
+            <button class="toggle-btn active" id="toggle-home" onclick="setStatsTeam('home')">HOME</button>
+            <button class="toggle-btn"        id="toggle-away" onclick="setStatsTeam('away')">AWAY</button>
+          </div>
+        </div>
+        <div class="stats-table-wrap">
+          <table class="stats-table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>MIN</th>
+                <th>PTS</th>
+                <th>REB</th>
+                <th>AST</th>
+                <th>STL</th>
+                <th>BLK</th>
+                <th>FG</th>
+              </tr>
+            </thead>
+            <tbody id="stats-body">
+              <tr><td colspan="8" class="stats-empty">Stats appear once the game starts.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Play by play -->
+      <div class="pbp-card">
+        <div class="pbp-header section-label">Play by Play</div>
+        <div class="pbp-feed" id="pbp-feed">
+          <div class="pbp-empty">Live plays will appear here once the game starts.</div>
+        </div>
+      </div>
+
+    </div><!-- .right-col -->
+
+  </div><!-- .two-col -->
 
 </div><!-- #dashboard -->
 
@@ -852,6 +1000,55 @@ function updateFeed(actions) {
   while (feed.children.length > 40) feed.removeChild(feed.lastChild);
 }
 
+// ── Player stats ──
+let currentBoxscore = null;
+let selectedTeam = 'home';
+let boxscoreTimer = null;
+
+function setStatsTeam(team) {
+  selectedTeam = team;
+  document.getElementById('toggle-home').classList.toggle('active', team === 'home');
+  document.getElementById('toggle-away').classList.toggle('active', team === 'away');
+  renderStats();
+}
+
+async function fetchBoxscore() {
+  if (!currentGame) return;
+  try {
+    const res = await fetch(`${SERVER}/boxscore/${currentGame}`);
+    if (!res.ok) return;
+    currentBoxscore = await res.json();
+    // Update toggle labels to actual team tricodes
+    if (currentBoxscore.home) document.getElementById('toggle-home').textContent = currentBoxscore.home.tricode || 'HOME';
+    if (currentBoxscore.away) document.getElementById('toggle-away').textContent = currentBoxscore.away.tricode || 'AWAY';
+    renderStats();
+  } catch {}
+}
+
+function renderStats() {
+  const tbody = document.getElementById('stats-body');
+  if (!currentBoxscore) return;
+  const team = currentBoxscore[selectedTeam];
+  if (!team || !team.players || !team.players.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="stats-empty">No stats yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  team.players.forEach(p => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${p.name}</td>
+      <td>${p.mins}</td>
+      <td class="pts">${p.pts}</td>
+      <td>${p.reb}</td>
+      <td>${p.ast}</td>
+      <td>${p.stl}</td>
+      <td>${p.blk}</td>
+      <td>${p.fgm}/${p.fga}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
 // ── Game select / nav ──
 let currentGame = null;
 
@@ -902,11 +1099,19 @@ function selectGame(g) {
   renderDots('foul-away-dots', 0, 5);
 
   socket.emit('subscribe', { game_id: currentGame });
+
+  // Fetch boxscore immediately and refresh every 30s
+  currentBoxscore = null;
+  fetchBoxscore();
+  if (boxscoreTimer) clearInterval(boxscoreTimer);
+  boxscoreTimer = setInterval(fetchBoxscore, 30000);
 }
 
 function goBack() {
   if (currentGame) socket.emit('unsubscribe', { game_id: currentGame });
+  if (boxscoreTimer) { clearInterval(boxscoreTimer); boxscoreTimer = null; }
   currentGame = null;
+  currentBoxscore = null;
   document.getElementById('dashboard').style.display  = 'none';
   document.getElementById('game-select').style.display = 'flex';
 }

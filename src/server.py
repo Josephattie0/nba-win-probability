@@ -294,6 +294,89 @@ def _build_game_update(scoreboard_game: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# REST endpoints
+# ---------------------------------------------------------------------------
+
+@app.route("/")
+def dashboard():
+    path = os.path.join(os.path.dirname(__file__), "..", "dashboard", "index.html")
+    return send_file(os.path.abspath(path))
+
+
+@app.route("/games")
+def games():
+    raw = _fetch_scoreboard()
+    return jsonify([
+        {
+            "game_id": g["gameId"],
+            "status":    g["gameStatusText"],
+            "period":    g.get("period", 0),
+            "clock":     g.get("gameClock", ""),
+            "home_team": g["homeTeam"]["teamTricode"],
+            "away_team": g["awayTeam"]["teamTricode"],
+            "home_score": g["homeTeam"].get("score", 0),
+            "away_score": g["awayTeam"].get("score", 0),
+        }
+        for g in raw
+    ])
+
+
+@app.route("/predict", methods=["POST"])
+def predict_endpoint():
+    body = request.get_json(force=True)
+    required = ["score_diff", "seconds_left", "home_possession", "home_in_bonus", "away_in_bonus"]
+    missing = [k for k in required if k not in body]
+    if missing:
+        return jsonify({"error": f"Missing fields: {missing}"}), 400
+    prob = model_predict(
+        float(body["score_diff"]), float(body["seconds_left"]),
+        int(body["home_possession"]), int(body["home_in_bonus"]), int(body["away_in_bonus"]),
+    )
+    return jsonify({"home_win_prob": prob, "away_win_prob": round(1 - prob, 4)})
+
+
+@app.route("/boxscore/<game_id>")
+def get_boxscore(game_id):
+    url = f"https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{game_id}.json"
+    data = _get(url)
+    if not data:
+        return jsonify({"error": "Boxscore unavailable"}), 404
+
+    game = data.get("game", {})
+
+    def parse_team(team):
+        players = []
+        for p in team.get("players", []):
+            if p.get("played", "0") != "1":
+                continue
+            s = p.get("statistics", {})
+            mins_raw = s.get("minutesCalculated", "") or ""
+            m = re.match(r"PT(\d+)M", mins_raw)
+            mins = int(m.group(1)) if m else 0
+            players.append({
+                "name":    p.get("nameI", ""),
+                "starter": p.get("starter", "0") == "1",
+                "mins":    mins,
+                "pts":     s.get("points", 0),
+                "reb":     s.get("reboundsTotal", 0),
+                "ast":     s.get("assists", 0),
+                "stl":     s.get("steals", 0),
+                "blk":     s.get("blocks", 0),
+                "fgm":     s.get("fieldGoalsMade", 0),
+                "fga":     s.get("fieldGoalsAttempted", 0),
+            })
+        return {
+            "tricode": team.get("teamTricode", ""),
+            "players": sorted(players, key=lambda x: (-x["starter"], -x["pts"])),
+        }
+
+    return jsonify({
+        "home": parse_team(game.get("homeTeam", {})),
+        "away": parse_team(game.get("awayTeam", {})),
+    })
+
+
+# ---------------------------------------------------------------------------
 # Background polling loop
 # ---------------------------------------------------------------------------
 
@@ -322,63 +405,6 @@ def _poll_loop() -> None:
                     socketio.emit("game_update", payload, to=sid)
             except Exception as exc:
                 print(f"[poll] error for {game_id}: {exc}")
-
-
-# ---------------------------------------------------------------------------
-# REST endpoints
-# ---------------------------------------------------------------------------
-
-@app.route("/")
-def dashboard():
-    path = os.path.join(os.path.dirname(__file__), "..", "dashboard", "index.html")
-    return send_file(os.path.abspath(path))
-
-
-@app.route("/games")
-def games():
-    """List today's games with their current status."""
-    raw = _fetch_scoreboard()
-    return jsonify([
-        {
-            "game_id": g["gameId"],
-            "status": g["gameStatusText"],
-            "period": g.get("period", 0),
-            "clock": g.get("gameClock", ""),
-            "home_team": g["homeTeam"]["teamTricode"],
-            "away_team": g["awayTeam"]["teamTricode"],
-            "home_score": g["homeTeam"].get("score", 0),
-            "away_score": g["awayTeam"].get("score", 0),
-        }
-        for g in raw
-    ])
-
-
-@app.route("/predict", methods=["POST"])
-def predict_endpoint():
-    """
-    One-shot prediction.
-
-    Body (JSON):
-        score_diff      int    home minus away points
-        seconds_left    float  total seconds remaining
-        home_possession int    1 or 0
-        home_in_bonus   int    1 or 0
-        away_in_bonus   int    1 or 0
-    """
-    body = request.get_json(force=True)
-    required = ["score_diff", "seconds_left", "home_possession", "home_in_bonus", "away_in_bonus"]
-    missing = [k for k in required if k not in body]
-    if missing:
-        return jsonify({"error": f"Missing fields: {missing}"}), 400
-
-    prob = model_predict(
-        float(body["score_diff"]),
-        float(body["seconds_left"]),
-        int(body["home_possession"]),
-        int(body["home_in_bonus"]),
-        int(body["away_in_bonus"]),
-    )
-    return jsonify({"home_win_prob": prob, "away_win_prob": round(1 - prob, 4)})
 
 
 # ---------------------------------------------------------------------------
