@@ -101,16 +101,18 @@ def _fetch_pbp(game_id: str) -> list[dict]:
 # Feature extraction from live data
 # ---------------------------------------------------------------------------
 
-def _update_foul_state(state: dict, actions: list[dict]) -> None:
+def _update_game_state(state: dict, actions: list[dict]) -> None:
     """
-    Incrementally update per-game foul state from new PBP actions.
+    Incrementally update all per-game tracking state from new live PBP actions.
 
-    The live PBP uses numeric team IDs in the `possession` field, not tricodes.
-    For defensive fouls (personal/shooting/loose ball), possession after the
-    foul goes to the fouled team — so the fouling team is the one WITHOUT
-    possession. Offensive fouls are the opposite but rare; we accept that error.
+    Live PBP field semantics:
+      possession  — numeric team ID; for shots = shooting team, for fouls = fouled team
+      actionType  — '2pt'|'3pt'|'freethrow'|'foul'|'timeout'|'period'|...
+      shotResult  — 'Made' | 'Missed'
+      subType     — foul sub-category
+      personIdsFilter — list of personIds involved (index 0 = primary actor)
     """
-    seen = state.get("seen_actions", 0)
+    seen        = state.get("seen_actions", 0)
     new_actions = actions[seen:]
     state["seen_actions"] = len(actions)
 
@@ -120,33 +122,81 @@ def _update_foul_state(state: dict, actions: list[dict]) -> None:
     for action in new_actions:
         period = action.get("period", state.get("period", 1))
 
+        # Period boundary — reset per-period counters
         if period != state.get("period"):
-            state["period"] = period
+            state["period"]     = period
             state["home_fouls"] = 0
             state["away_fouls"] = 0
+            if int(period or 1) > REGULATION_QUARTERS:
+                state["home_timeouts"] = 3
+                state["away_timeouts"] = 3
 
-        if str(action.get("actionType", "")).lower() != "foul":
-            continue
+        atype   = str(action.get("actionType", "") or "").lower()
+        subtype = str(action.get("subType",    "") or "").lower()
+        poss    = action.get("possession")
+        poss_id = int(poss) if poss else 0
+        result  = str(action.get("shotResult", "") or "").lower()
 
-        subtype = str(action.get("subType", "")).lower()
-        poss = action.get("possession")
-        if not poss or not home_id:
-            continue
-
-        poss = int(poss)
-        offensive = "offensive" in subtype
-        if offensive:
-            # Offensive foul: fouling team HAS possession
-            if poss == home_id:
+        # ── Fouls (team bonus + foul trouble) ────────────────────────────
+        if atype == "foul" and "technical" not in subtype and poss_id:
+            offensive = "offensive" in subtype
+            # for defensive fouls poss = fouled team → fouler is opposite
+            fouling_id = poss_id if offensive else (
+                away_id if poss_id == home_id else home_id
+            )
+            if fouling_id == home_id:
                 state["home_fouls"] = state.get("home_fouls", 0) + 1
-            elif poss == away_id:
+            elif fouling_id == away_id:
                 state["away_fouls"] = state.get("away_fouls", 0) + 1
-        else:
-            # Defensive foul: fouling team is opposite of possession after foul
-            if poss == home_id:
-                state["away_fouls"] = state.get("away_fouls", 0) + 1
-            elif poss == away_id:
-                state["home_fouls"] = state.get("home_fouls", 0) + 1
+
+            # Per-player foul trouble
+            pids = action.get("personIdsFilter", [])
+            if pids:
+                pid  = str(pids[0])
+                old  = state["player_fouls"].get(pid, 0)
+                new  = old + 1
+                state["player_fouls"][pid] = new
+                state["player_team"][pid]  = fouling_id
+                if old < 4 <= new:
+                    if fouling_id == home_id:
+                        state["home_foul_trouble"] = state.get("home_foul_trouble", 0) + 1
+                    elif fouling_id == away_id:
+                        state["away_foul_trouble"] = state.get("away_foul_trouble", 0) + 1
+
+        # ── Timeouts ─────────────────────────────────────────────────────
+        elif atype == "timeout" and poss_id:
+            if poss_id == home_id:
+                state["home_timeouts"] = max(0, state.get("home_timeouts", 7) - 1)
+            elif poss_id == away_id:
+                state["away_timeouts"] = max(0, state.get("away_timeouts", 7) - 1)
+
+        # ── Field goals (for rolling FG%) ────────────────────────────────
+        elif atype in ("2pt", "3pt") and poss_id:
+            # possession = shooting team for shot events
+            made = result == "made"
+            if poss_id == home_id:
+                state["home_fga"] = state.get("home_fga", 0) + 1
+                if made:
+                    state["home_fgm"] = state.get("home_fgm", 0) + 1
+            elif poss_id == away_id:
+                state["away_fga"] = state.get("away_fga", 0) + 1
+                if made:
+                    state["away_fgm"] = state.get("away_fgm", 0) + 1
+
+        # ── Momentum (last-5 scoring possessions) ────────────────────────
+        sh = action.get("scoreHome")
+        sa = action.get("scoreAway")
+        if sh is not None and sa is not None:
+            try:
+                sh, sa = int(sh), int(sa)
+                if sh > state.get("prev_score_home", sh):
+                    state["momentum_window"].append(1)
+                elif sa > state.get("prev_score_away", sa):
+                    state["momentum_window"].append(-1)
+                state["prev_score_home"] = sh
+                state["prev_score_away"] = sa
+            except (ValueError, TypeError):
+                pass
 
 
 def _possession_from_pbp(actions: list[dict], home_id: int) -> int:
@@ -222,31 +272,66 @@ def _build_game_update(scoreboard_game: dict) -> dict:
             "feed": feed,
         }
 
-    # Initialize per-game foul state on first call
+    # Initialise per-game state on first call
     if game_id not in _game_state:
+        from collections import deque
         _game_state[game_id] = {
-            "period": period,
-            "home_fouls": 0,
-            "away_fouls": 0,
-            "home_id": home_id,
-            "away_id": away_id,
-            "seen_actions": 0,
+            "period":            period,
+            "home_fouls":        0,
+            "away_fouls":        0,
+            "home_id":           home_id,
+            "away_id":           away_id,
+            "seen_actions":      0,
+            # new features
+            "home_timeouts":     7,
+            "away_timeouts":     7,
+            "home_fgm":          0,
+            "home_fga":          0,
+            "away_fgm":          0,
+            "away_fga":          0,
+            "home_foul_trouble": 0,
+            "away_foul_trouble": 0,
+            "player_fouls":      {},
+            "player_team":       {},
+            "momentum_window":   deque(maxlen=5),
+            "prev_score_home":   0,
+            "prev_score_away":   0,
         }
     state = _game_state[game_id]
     state["home_id"] = home_id
     state["away_id"] = away_id
 
-    # Fetch live PBP for possession + bonus (may be empty before game starts)
+    # Fetch live PBP and update all tracking state
     actions = _fetch_pbp(game_id)
-    _update_foul_state(state, actions)
+    _update_game_state(state, actions)
 
-    is_ot = period > 4
+    is_ot     = period > 4
     threshold = 4 if is_ot else BONUS_THRESHOLD
-    home_in_bonus = 1 if state["away_fouls"] >= threshold else 0
-    away_in_bonus = 1 if state["home_fouls"] >= threshold else 0
+    home_in_bonus   = 1 if state["away_fouls"] >= threshold else 0
+    away_in_bonus   = 1 if state["home_fouls"] >= threshold else 0
     home_possession = _possession_from_pbp(actions, home_id)
 
-    win_prob = model_predict(score_diff, seconds_left, home_possession, home_in_bonus, away_in_bonus)
+    home_fg_pct = (state["home_fgm"] / state["home_fga"]
+                   if state["home_fga"] else 0.0)
+    away_fg_pct = (state["away_fgm"] / state["away_fga"]
+                   if state["away_fga"] else 0.0)
+    momentum    = sum(state["momentum_window"])
+
+    win_prob = model_predict(
+        game_id          = game_id,
+        score_diff       = score_diff,
+        seconds_left     = seconds_left,
+        home_possession  = home_possession,
+        home_in_bonus    = home_in_bonus,
+        away_in_bonus    = away_in_bonus,
+        home_timeouts    = state["home_timeouts"],
+        away_timeouts    = state["away_timeouts"],
+        home_fg_pct      = home_fg_pct,
+        away_fg_pct      = away_fg_pct,
+        home_foul_trouble= state["home_foul_trouble"],
+        away_foul_trouble= state["away_foul_trouble"],
+        momentum         = momentum,
+    )
 
     # Last 10 events for the play-by-play feed (skip blank descriptions)
     # Live PBP uses numeric team IDs and has no teamTricode/playerNameI;
