@@ -629,6 +629,7 @@
 
 
     /* ── REPLAY DASHBOARD ── */
+    /* ── REPLAY DASHBOARD ── */
     #replay-dash {
       display: none;
       flex-direction: column;
@@ -638,61 +639,170 @@
       padding-bottom: 40px;
     }
 
-    .replay-chart-wrap {
-      margin: 16px 20px 0;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 13px 14px;
+    /* Scoreboard */
+    .rp-scoreboard {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 26px 24px 10px;
+      gap: 12px;
     }
 
-    #replay-canvas { width: 100%; height: 160px; display: block; }
+    .rp-team { display: flex; flex-direction: column; gap: 4px; }
+    .rp-team.rp-away { align-items: flex-start; }
+    .rp-team.rp-home { align-items: flex-end; }
 
-    .replay-controls {
+    .rp-badge {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.14em;
+      color: var(--muted); text-transform: uppercase;
+    }
+
+    .rp-tri {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.6rem; letter-spacing: 0.04em; line-height: 1;
+    }
+
+    .rp-team.rp-away .rp-tri { color: #cbd5e1; }
+    .rp-team.rp-home .rp-tri { color: var(--gold); }
+
+    .rp-score-block {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+
+    .rp-digits {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3.4rem; letter-spacing: 0.04em; line-height: 1;
+    }
+
+    .rp-sep { color: var(--muted); margin: 0 4px; }
+
+    .rp-period-pill {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em;
+      color: var(--muted); text-transform: uppercase;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 3px 12px;
+    }
+
+    /* Win prob split bar */
+    .rp-prob-section { padding: 4px 24px 18px; }
+
+    .rp-prob-labels {
+      display: flex; justify-content: space-between; margin-bottom: 7px;
+    }
+
+    .rp-prob-side { display: flex; align-items: baseline; gap: 7px; }
+
+    .rp-prob-pct {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.9rem; letter-spacing: 0.02em; color: #cbd5e1;
+      transition: color 0.4s;
+    }
+
+    .rp-prob-pct.leading { color: var(--gold); }
+
+    .rp-prob-tag {
+      font-size: 0.6rem; font-weight: 700;
+      letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase;
+    }
+
+    .rp-split-bar-wrap {
+      height: 7px; border-radius: 4px; overflow: hidden;
+      display: flex; background: var(--border);
+    }
+
+    .rp-split-away {
+      height: 100%; background: #334155;
+      transition: width 0.45s ease;
+    }
+
+    .rp-split-home {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+      flex: 1; transition: all 0.45s ease;
+    }
+
+    /* Chart */
+    .rp-chart-wrap {
+      margin: 0 20px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 13px 14px;
+    }
+
+    #replay-canvas { width: 100%; height: 190px; display: block; }
+
+    /* Scrubber */
+    .rp-scrubber {
       margin: 10px 20px 0;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 18px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+
+    .rp-scrubber-top {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .rp-play-count {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .rp-hotkeys {
+      font-size: 0.62rem; color: var(--muted); letter-spacing: 0.04em;
     }
 
     #replay-slider {
-      width: 100%;
-      accent-color: var(--gold);
-      cursor: pointer;
+      width: 100%; accent-color: var(--gold);
+      cursor: pointer; height: 4px;
     }
 
-    .replay-info {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 16px;
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 12px;
-      align-items: center;
+    /* Play info */
+    .rp-play-card {
+      margin: 10px 20px 0;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px 20px;
+      display: flex; align-items: stretch; gap: 0;
     }
 
-    .replay-score {
+    .rp-play-clock {
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      padding-right: 18px; margin-right: 18px;
+      border-right: 1px solid var(--border);
+      min-width: 70px; gap: 3px;
+    }
+
+    .rp-clock-period {
       font-family: 'Bebas Neue', sans-serif;
-      font-size: 1.8rem;
-      letter-spacing: 0.04em;
+      font-size: 1.15rem; letter-spacing: 0.1em; color: var(--gold);
+    }
+
+    .rp-clock-time {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.6rem; letter-spacing: 0.04em; color: var(--text);
       line-height: 1;
-      white-space: nowrap;
     }
 
-    .replay-desc {
-      font-size: 0.78rem;
-      color: #94a3b8;
-      line-height: 1.4;
+    .rp-play-text { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+
+    .rp-play-desc {
+      font-size: 0.82rem; font-weight: 500;
+      color: var(--text); line-height: 1.45;
     }
 
-    .replay-meta {
-      font-size: 0.65rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      text-transform: uppercase;
-      margin-top: 2px;
+    .rp-play-win-row {
+      display: flex; gap: 10px; margin-top: 4px;
+    }
+
+    .rp-win-pill {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em;
+      padding: 2px 8px; border-radius: 20px;
+      border: 1px solid var(--border); color: var(--muted);
+    }
+
+    .rp-win-pill.active {
+      border-color: var(--gold); color: var(--gold);
+      background: rgba(245,158,11,0.08);
     }
 
     /* ── CALIBRATION ── */
@@ -746,29 +856,86 @@
 
 <!-- ── REPLAY DASHBOARD ── -->
 <div id="replay-dash">
+
+  <!-- Header -->
   <div class="header">
     <button class="back-btn" onclick="goBackFromReplay()">← Games</button>
     <div class="header-title" id="replay-title">Game Replay</div>
-    <div></div>
+    <div class="live-indicator">
+      <span style="font-size:0.68rem;letter-spacing:0.1em;color:var(--muted)" id="replay-date-badge"></span>
+    </div>
   </div>
   <div class="status-strip" id="replay-status">--</div>
 
-  <div class="replay-chart-wrap">
-    <div class="section-label">Win Probability — Full Game</div>
+  <!-- Scoreboard -->
+  <div class="rp-scoreboard">
+    <div class="rp-team rp-away">
+      <div class="rp-badge">Away</div>
+      <div class="rp-tri" id="rp-away-tri">---</div>
+    </div>
+    <div class="rp-score-block">
+      <div class="rp-digits">
+        <span id="rp-away-score">0</span>
+        <span class="rp-sep">–</span>
+        <span id="rp-home-score">0</span>
+      </div>
+      <div class="rp-period-pill" id="rp-period-pill">—</div>
+    </div>
+    <div class="rp-team rp-home">
+      <div class="rp-badge">Home</div>
+      <div class="rp-tri" id="rp-home-tri">---</div>
+    </div>
+  </div>
+
+  <!-- Win probability split bar -->
+  <div class="rp-prob-section">
+    <div class="rp-prob-labels">
+      <div class="rp-prob-side">
+        <span class="rp-prob-pct" id="rp-away-prob">50%</span>
+        <span class="rp-prob-tag" id="rp-away-label">Away Win</span>
+      </div>
+      <div class="rp-prob-side">
+        <span class="rp-prob-tag" id="rp-home-label">Home Win</span>
+        <span class="rp-prob-pct" id="rp-home-prob">50%</span>
+      </div>
+    </div>
+    <div class="rp-split-bar-wrap">
+      <div class="rp-split-away" id="rp-split-away" style="width:50%"></div>
+      <div class="rp-split-home" id="rp-split-home"></div>
+    </div>
+  </div>
+
+  <!-- Win prob chart -->
+  <div class="rp-chart-wrap">
+    <div class="section-label">Win Probability Timeline</div>
     <canvas id="replay-canvas"></canvas>
   </div>
 
-  <div class="replay-controls">
+  <!-- Scrubber -->
+  <div class="rp-scrubber">
+    <div class="rp-scrubber-top">
+      <span class="rp-play-count" id="rp-play-count">Play — / —</span>
+      <span class="rp-hotkeys">← → to step</span>
+    </div>
     <input type="range" id="replay-slider" min="0" max="100" value="0"
            oninput="scrubReplay(+this.value)">
-    <div class="replay-info">
-      <div class="replay-score" id="replay-score">0 – 0</div>
-      <div>
-        <div class="replay-desc" id="replay-desc">—</div>
-        <div class="replay-meta" id="replay-meta">—</div>
+  </div>
+
+  <!-- Play info -->
+  <div class="rp-play-card">
+    <div class="rp-play-clock">
+      <div class="rp-clock-period" id="rp-clock-period">Q1</div>
+      <div class="rp-clock-time"   id="rp-clock-time">12:00</div>
+    </div>
+    <div class="rp-play-text">
+      <div class="rp-play-desc" id="rp-play-desc">—</div>
+      <div class="rp-play-win-row">
+        <span class="rp-win-pill" id="rp-away-pill">— Away Win</span>
+        <span class="rp-win-pill" id="rp-home-pill">— Home Win</span>
       </div>
     </div>
   </div>
+
 </div>
 
 <!-- ── DASHBOARD ── -->
@@ -1302,7 +1469,15 @@ async function startReplay(gid, gameInfo, clickedCard) {
     document.getElementById('replay-title').textContent =
       `${data.away_team} @ ${data.home_team}`;
     document.getElementById('replay-status').textContent =
-      gameInfo ? `Final · ${gameInfo.date}` : `${data.total_plays} plays`;
+      gameInfo ? `Final · ${gameInfo.date}` : 'Final';
+    document.getElementById('replay-date-badge').textContent =
+      gameInfo ? gameInfo.date : '';
+
+    // Pre-fill team names in scoreboard + labels
+    document.getElementById('rp-away-tri').textContent   = data.away_team;
+    document.getElementById('rp-home-tri').textContent   = data.home_team;
+    document.getElementById('rp-away-label').textContent = `${data.away_team} Win`;
+    document.getElementById('rp-home-label').textContent = `${data.home_team} Win`;
 
     const slider = document.getElementById('replay-slider');
     slider.max   = data.plays.length - 1;
@@ -1329,19 +1504,51 @@ function scrubReplay(idx) {
   const play = replayData.plays[replayIdx];
   if (!play) return;
 
-  const { home_team, away_team } = replayData;
-  const homeScore = Math.round((play.score_diff + play.home_score + play.away_score) / 2 + play.score_diff / 2);
-  // score_diff = home - away, so home = away + diff
-  const away = play.away_score, home = away + play.score_diff;
-  document.getElementById('replay-score').textContent = `${away} – ${home}`;
-  document.getElementById('replay-score').title = `${away_team} – ${home_team}`;
+  const { home_team, away_team, plays } = replayData;
+  const hp = play.home_win_prob, ap = play.away_win_prob;
+  const hScore = play.home_score, aScore = play.away_score;
 
+  // Scores
+  document.getElementById('rp-away-score').textContent = aScore;
+  document.getElementById('rp-home-score').textContent = hScore;
+
+  // Period + clock
   const sl   = play.seconds_left;
-  const mins = Math.floor(sl / 60), secs = Math.floor(sl % 60);
-  const per  = play.period <= 4 ? `Q${play.period}` : 'OT';
-  document.getElementById('replay-meta').textContent =
-    `${per}  ·  ${mins}:${String(secs).padStart(2,'0')} left  ·  Home: ${Math.round(play.home_win_prob*100)}%  Away: ${Math.round(play.away_win_prob*100)}%`;
-  document.getElementById('replay-desc').textContent = play.description || '—';
+  const mins = Math.floor(sl / 60);
+  const secs = Math.floor(sl % 60);
+  const per  = !play.period ? '—' : play.period <= 4 ? `Q${play.period}` : 'OT';
+  const clock = `${mins}:${String(secs).padStart(2, '0')}`;
+  document.getElementById('rp-period-pill').textContent = `${per}  ·  ${clock}`;
+  document.getElementById('rp-clock-period').textContent = per;
+  document.getElementById('rp-clock-time').textContent   = clock;
+
+  // Win prob split bar + labels
+  const awayPct = Math.round(ap * 100), homePct = Math.round(hp * 100);
+  document.getElementById('rp-away-prob').textContent = `${awayPct}%`;
+  document.getElementById('rp-home-prob').textContent = `${homePct}%`;
+  document.getElementById('rp-split-away').style.width = `${awayPct}%`;
+
+  // Highlight the leader
+  document.getElementById('rp-away-prob').classList.toggle('leading', ap > hp);
+  document.getElementById('rp-home-prob').classList.toggle('leading', hp > ap);
+
+  // Play count
+  document.getElementById('rp-play-count').textContent =
+    `Play ${replayIdx + 1} / ${plays.length}`;
+
+  // Description
+  document.getElementById('rp-play-desc').textContent = play.description || '—';
+
+  // Win pills
+  const awayPill = document.getElementById('rp-away-pill');
+  const homePill = document.getElementById('rp-home-pill');
+  awayPill.textContent = `${awayPct}% ${away_team} Win`;
+  homePill.textContent = `${homePct}% ${home_team} Win`;
+  awayPill.classList.toggle('active', ap > hp);
+  homePill.classList.toggle('active', hp >= ap);
+
+  // Sync slider
+  document.getElementById('replay-slider').value = idx;
 
   drawReplayChart(replayIdx);
 }
@@ -1597,6 +1804,13 @@ socket.on('disconnect', () => {
 });
 
 socket.on('game_update', applyUpdate);
+
+// Arrow key scrubbing in replay mode
+document.addEventListener('keydown', e => {
+  if (!replayData) return;
+  if (e.key === 'ArrowRight') scrubReplay(Math.min(replayIdx + 1, replayData.plays.length - 1));
+  if (e.key === 'ArrowLeft')  scrubReplay(Math.max(replayIdx - 1, 0));
+});
 
 // ── Boot ──
 loadGames();
