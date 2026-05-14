@@ -104,19 +104,22 @@ def _fetch_pbp(game_id: str) -> list[dict]:
 def _update_foul_state(state: dict, actions: list[dict]) -> None:
     """
     Incrementally update per-game foul state from new PBP actions.
-    Mutates `state` in-place.
+
+    The live PBP uses numeric team IDs in the `possession` field, not tricodes.
+    For defensive fouls (personal/shooting/loose ball), possession after the
+    foul goes to the fouled team — so the fouling team is the one WITHOUT
+    possession. Offensive fouls are the opposite but rare; we accept that error.
     """
     seen = state.get("seen_actions", 0)
     new_actions = actions[seen:]
     state["seen_actions"] = len(actions)
 
-    home_team = state.get("home_team", "")
-    away_team = state.get("away_team", "")
+    home_id = state.get("home_id", 0)
+    away_id = state.get("away_id", 0)
 
     for action in new_actions:
         period = action.get("period", state.get("period", 1))
 
-        # Reset on new period
         if period != state.get("period"):
             state["period"] = period
             state["home_fouls"] = 0
@@ -125,22 +128,33 @@ def _update_foul_state(state: dict, actions: list[dict]) -> None:
         if str(action.get("actionType", "")).lower() != "foul":
             continue
 
-        foul_team = str(action.get("teamTricode", "")).upper()
-        if foul_team == home_team:
-            state["home_fouls"] = state.get("home_fouls", 0) + 1
-        elif foul_team == away_team:
-            state["away_fouls"] = state.get("away_fouls", 0) + 1
+        subtype = str(action.get("subType", "")).lower()
+        poss = action.get("possession")
+        if not poss or not home_id:
+            continue
+
+        poss = int(poss)
+        offensive = "offensive" in subtype
+        if offensive:
+            # Offensive foul: fouling team HAS possession
+            if poss == home_id:
+                state["home_fouls"] = state.get("home_fouls", 0) + 1
+            elif poss == away_id:
+                state["away_fouls"] = state.get("away_fouls", 0) + 1
+        else:
+            # Defensive foul: fouling team is opposite of possession after foul
+            if poss == home_id:
+                state["away_fouls"] = state.get("away_fouls", 0) + 1
+            elif poss == away_id:
+                state["home_fouls"] = state.get("home_fouls", 0) + 1
 
 
-def _possession_from_pbp(actions: list[dict], home_team: str) -> int:
-    """
-    Estimate current possession from the most recent PBP action with a team.
-    Returns 1 if home team has the ball, 0 if away.
-    """
+def _possession_from_pbp(actions: list[dict], home_id: int) -> int:
+    """Return 1 if home team has possession, 0 if away. Uses numeric team ID."""
     for action in reversed(actions):
-        tri = str(action.get("teamTricode", "")).upper()
-        if tri:
-            return 1 if tri == home_team else 0
+        poss = action.get("possession")
+        if poss:
+            return 1 if int(poss) == home_id else 0
     return 0
 
 
@@ -154,6 +168,8 @@ def _build_game_update(scoreboard_game: dict) -> dict:
 
     home_tri = home["teamTricode"]
     away_tri = away["teamTricode"]
+    home_id  = int(home.get("teamId") or 0)
+    away_id  = int(away.get("teamId") or 0)
     home_score = int(home.get("score") or 0)
     away_score = int(away.get("score") or 0)
     score_diff = home_score - away_score
@@ -167,13 +183,13 @@ def _build_game_update(scoreboard_game: dict) -> dict:
             "period": period,
             "home_fouls": 0,
             "away_fouls": 0,
-            "home_team": home_tri,
-            "away_team": away_tri,
+            "home_id": home_id,
+            "away_id": away_id,
             "seen_actions": 0,
         }
     state = _game_state[game_id]
-    state["home_team"] = home_tri
-    state["away_team"] = away_tri
+    state["home_id"] = home_id
+    state["away_id"] = away_id
 
     # Fetch live PBP for possession + bonus (may be empty before game starts)
     actions = _fetch_pbp(game_id)
@@ -183,22 +199,27 @@ def _build_game_update(scoreboard_game: dict) -> dict:
     threshold = 4 if is_ot else BONUS_THRESHOLD
     home_in_bonus = 1 if state["away_fouls"] >= threshold else 0
     away_in_bonus = 1 if state["home_fouls"] >= threshold else 0
-    home_possession = _possession_from_pbp(actions, home_tri)
+    home_possession = _possession_from_pbp(actions, home_id)
 
     win_prob = model_predict(score_diff, seconds_left, home_possession, home_in_bonus, away_in_bonus)
 
     # Last 10 events for the play-by-play feed (skip blank descriptions)
+    # Live PBP uses numeric team IDs and has no teamTricode/playerNameI;
+    # derive home/away label from the possession field.
     feed = []
     for a in actions[-10:]:
         desc = str(a.get("description", "") or "").strip()
         if not desc:
             continue
+        poss = a.get("possession")
+        team_label = ""
+        if poss and home_id:
+            team_label = home_tri if int(poss) == home_id else away_tri
         feed.append({
-            "num":    int(a.get("actionNumber") or a.get("actionId") or 0),
+            "num":    int(a.get("actionNumber") or 0),
             "clock":  str(a.get("clock", "") or ""),
             "period": int(a.get("period", 0) or 0),
-            "team":   str(a.get("teamTricode", "") or "").upper(),
-            "player": str(a.get("playerNameI", "") or ""),
+            "team":   team_label,
             "desc":   desc,
             "type":   str(a.get("actionType", "") or "").lower(),
             "result": str(a.get("shotResult", "") or "").lower(),
