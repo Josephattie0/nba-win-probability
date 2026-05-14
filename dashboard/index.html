@@ -1268,7 +1268,7 @@ async function loadRecentGames() {
       card.innerHTML = `
         <div class="matchup">${g.away_team} @ ${g.home_team}</div>
         <div class="game-time">${g.away_score} – ${g.home_score} · ${g.date}</div>`;
-      card.onclick = () => startReplay(g.game_id, g);
+      card.onclick = () => startReplay(g.game_id, g, card);
       list.appendChild(card);
     });
   } catch (e) {
@@ -1280,17 +1280,22 @@ async function loadRecentGames() {
 let replayData   = null;   // {plays, key_moments, home_team, away_team}
 let replayIdx    = 0;
 
-async function startReplay(gid, gameInfo) {
+async function startReplay(gid, gameInfo, clickedCard) {
   const errEl = document.getElementById('replay-load-error');
-  // Show loading state on the clicked card
   errEl.style.display = 'none';
-  const cards = document.querySelectorAll('#recent-game-list .game-card');
-  cards.forEach(c => c.style.opacity = '0.4');
+
+  const origHTML = clickedCard ? clickedCard.innerHTML : '';
+  if (clickedCard) {
+    clickedCard.innerHTML = '<div class="matchup" style="font-size:1rem;color:var(--gold)">Loading…</div>';
+    clickedCard.style.borderColor = 'var(--gold)';
+    clickedCard.style.pointerEvents = 'none';
+  }
 
   try {
     const res  = await fetch(`${SERVER}/game/${gid}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+
     replayData = data;
     replayIdx  = 0;
 
@@ -1308,10 +1313,13 @@ async function startReplay(gid, gameInfo) {
     scrubReplay(0);
     loadCalibration();
   } catch (e) {
-    errEl.textContent = `Failed to load game: ${e.message}`;
-    errEl.style.display = '';
-  } finally {
-    cards.forEach(c => c.style.opacity = '');
+    errEl.textContent   = `Failed to load: ${e.message}`;
+    errEl.style.display = 'block';
+    if (clickedCard) {
+      clickedCard.innerHTML        = origHTML;
+      clickedCard.style.borderColor    = '';
+      clickedCard.style.pointerEvents  = '';
+    }
   }
 }
 

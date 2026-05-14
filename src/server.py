@@ -511,10 +511,16 @@ def recent_games():
         from nba_api.stats.endpoints import LeagueGameLog
         import pandas as pd
 
+        from datetime import date as _date
+        _today = _date.today()
+        _y = _today.year
+        current_season = (f"{_y}-{str(_y+1)[2:]}" if _today.month >= 10
+                          else f"{_y-1}-{str(_y)[2:]}")
+
         games: list[dict] = []
         for stype in ("Playoffs", "Regular Season"):
             log = LeagueGameLog(
-                season="2024-25",
+                season=current_season,
                 season_type_all_star=stype,
                 direction="DESC",
                 sorter="DATE",
