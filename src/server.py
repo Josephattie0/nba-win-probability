@@ -178,9 +178,28 @@ def _build_game_update(scoreboard_game: dict) -> dict:
     game_status = int(scoreboard_game.get("gameStatus") or 1)
     seconds_left = _clock_to_seconds(game_clock, period) if period else 2880.0
 
-    # Game is final — skip the model and return the actual result
+    # Game is final — skip the model, return the actual result + last PBP actions
     if game_status == 3:
         home_won = score_diff > 0
+        actions = _fetch_pbp(game_id)
+        feed = []
+        for a in actions[-10:]:
+            desc = str(a.get("description", "") or "").strip()
+            if not desc:
+                continue
+            poss = a.get("possession")
+            team_label = ""
+            if poss and home_id:
+                team_label = home_tri if int(poss) == home_id else away_tri
+            feed.append({
+                "num":    int(a.get("actionNumber") or 0),
+                "clock":  str(a.get("clock", "") or ""),
+                "period": int(a.get("period", 0) or 0),
+                "team":   team_label,
+                "desc":   desc,
+                "type":   str(a.get("actionType", "") or "").lower(),
+                "result": str(a.get("shotResult", "") or "").lower(),
+            })
         return {
             "game_id": game_id,
             "status": scoreboard_game.get("gameStatusText", "Final"),
@@ -200,7 +219,7 @@ def _build_game_update(scoreboard_game: dict) -> dict:
             "away_fouls": 0,
             "home_win_prob": 1.0 if home_won else 0.0,
             "away_win_prob": 0.0 if home_won else 1.0,
-            "feed": [],
+            "feed": feed,
         }
 
     # Initialize per-game foul state on first call
