@@ -92,7 +92,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--seasons",
         nargs="+",
-        default=["2022-23", "2023-24"],
+        default=["2019-20", "2020-21", "2021-22", "2022-23", "2023-24"],
         help="NBA season strings, e.g. 2022-23",
     )
     parser.add_argument(
