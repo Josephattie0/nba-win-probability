@@ -1,2 +1,1 @@
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# pytest.ini sets pythonpath = src, so no manual path manipulation needed here.

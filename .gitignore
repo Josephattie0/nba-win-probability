@@ -5,3 +5,5 @@ data/
 *.pth
 *.pt
 .env
+.pytest_cache/
+.coverage
