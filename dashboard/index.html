@@ -1484,6 +1484,12 @@ async function startReplay(gid, gameInfo, clickedCard) {
     slider.max   = data.plays.length - 1;
     slider.value = 0;
 
+    if (clickedCard) {
+      clickedCard.innerHTML        = origHTML;
+      clickedCard.style.borderColor    = '';
+      clickedCard.style.pointerEvents  = '';
+    }
+
     document.getElementById('game-select').style.display  = 'none';
     document.getElementById('replay-dash').style.display  = 'flex';
     scrubReplay(0);
