@@ -98,9 +98,15 @@ NBA_HEADERS = {
 SCOREBOARD_URL = "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json"
 PBP_URL = "https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{}.json"
 
-QUARTER_SECONDS = 720   # 12 min regulation quarter
-OT_SECONDS = 300        # 5 min OT
-BONUS_THRESHOLD = 5     # team fouls before bonus (4 in OT)
+# Import shared constants from features.py to avoid drift
+from features import (
+    REGULATION_QUARTERS,
+    QUARTER_SECONDS,
+    OT_SECONDS,
+    BONUS_THRESHOLD,
+    FOUL_TROUBLE_THRESHOLD,
+    MOMENTUM_WINDOW,
+)
 
 # game_id -> set of connected socket session IDs
 _subscriptions: dict[str, set] = {}
