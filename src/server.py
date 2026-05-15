@@ -18,6 +18,8 @@ import os
 import re
 import threading
 import time
+from functools import wraps
+from collections import defaultdict
 
 import requests
 from flask import Flask, jsonify, request, send_file
@@ -25,16 +27,63 @@ from flask_socketio import SocketIO, emit
 
 from predict import predict as model_predict, reset_game
 
+# ---------------------------------------------------------------------------
+# Load environment variables from .env (if present)
+# ---------------------------------------------------------------------------
+
+def _load_env() -> None:
+    env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
+    if not os.path.exists(env_path):
+        return
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
+
+_load_env()
+
 _calibration_cache: dict | None = None
 
 # ---------------------------------------------------------------------------
 # App setup
 # ---------------------------------------------------------------------------
 
+_CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "*")
+_SECRET_KEY   = os.environ.get("FLASK_SECRET_KEY", "dev-insecure-key-change-in-prod")
+
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+app.config["SECRET_KEY"] = _SECRET_KEY
+socketio = SocketIO(app, cors_allowed_origins=_CORS_ORIGINS, async_mode="threading")
 
 POLL_INTERVAL = 5  # seconds between live pushes
+
+# ---------------------------------------------------------------------------
+# Simple in-memory rate limiter
+# ---------------------------------------------------------------------------
+
+_rate_store: dict = defaultdict(list)
+_rate_lock = threading.Lock()
+
+def _rate_limit(max_calls: int, window_secs: int = 60):
+    """Decorator: allow max_calls per IP per window_secs on REST endpoints."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            ip  = request.headers.get("X-Forwarded-For", request.remote_addr)
+            key = f"{fn.__name__}:{ip}"
+            now = time.time()
+            with _rate_lock:
+                calls = [t for t in _rate_store[key] if now - t < window_secs]
+                if len(calls) >= max_calls:
+                    return jsonify({"error": "Rate limit exceeded. Try again shortly."}), 429
+                calls.append(now)
+                _rate_store[key] = calls
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
 
 NBA_HEADERS = {
     "User-Agent": (
@@ -459,6 +508,7 @@ def dashboard():
 
 
 @app.route("/games")
+@_rate_limit(max_calls=30, window_secs=60)
 def games():
     raw = _fetch_scoreboard()
     return jsonify([
@@ -477,6 +527,7 @@ def games():
 
 
 @app.route("/predict", methods=["POST"])
+@_rate_limit(max_calls=60, window_secs=60)
 def predict_endpoint():
     import uuid
     body = request.get_json(force=True)
@@ -505,6 +556,7 @@ def predict_endpoint():
 
 
 @app.route("/recent-games")
+@_rate_limit(max_calls=10, window_secs=60)
 def recent_games():
     """Return the 15 most recently completed games across Playoffs + Regular Season."""
     try:
@@ -561,10 +613,12 @@ def recent_games():
 
         return jsonify(games)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"[/recent-games] error: {e}")
+        return jsonify({"error": "Could not fetch recent games. Try again shortly."}), 500
 
 
 @app.route("/game/<game_id>")
+@_rate_limit(max_calls=5, window_secs=60)
 def get_game_replay(game_id):
     """
     Historical replay: fetch full play-by-play via nba_api PlayByPlayV3,
@@ -575,14 +629,16 @@ def get_game_replay(game_id):
         from nba_api.stats.endpoints import PlayByPlayV3
         raw = PlayByPlayV3(game_id=game_id).get_data_frames()[0]
     except Exception as e:
-        return jsonify({"error": f"Could not fetch play-by-play for {game_id}: {e}"}), 404
+        print(f"[/game/{game_id}] PBP fetch error: {e}")
+        return jsonify({"error": f"Game {game_id} not found or unavailable."}), 404
 
     try:
         from features import build_features, FEATURES, _infer_teams, _parse_scores, _parse_clock, _seconds_left as sl_fn
         import pandas as pd
         df = build_features(raw)
     except Exception as e:
-        return jsonify({"error": f"Feature pipeline failed: {e}"}), 500
+        print(f"[/game/{game_id}] feature pipeline error: {e}")
+        return jsonify({"error": "Could not process game data. Try another game."}), 500
 
     # Infer team names for key moment labels
     raw_lower = raw.copy()
@@ -712,10 +768,12 @@ def get_calibration():
         _calibration_cache = result
         return jsonify(result)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"[/calibration] error: {e}")
+        return jsonify({"error": "Calibration unavailable. Ensure model is trained."}), 500
 
 
 @app.route("/boxscore/<game_id>")
+@_rate_limit(max_calls=20, window_secs=60)
 def get_boxscore(game_id):
     url = f"https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{game_id}.json"
     data = _get(url)
@@ -831,7 +889,12 @@ def on_unsubscribe(data):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    _host    = os.environ.get("HOST", "127.0.0.1")
+    _port    = int(os.environ.get("PORT", 5001))
+    _werkzeug = os.environ.get("ALLOW_WERKZEUG", "0") == "1"
+
     t = threading.Thread(target=_poll_loop, daemon=True)
     t.start()
-    print("Server running on http://localhost:5001")
-    socketio.run(app, host="0.0.0.0", port=5001, debug=False, allow_unsafe_werkzeug=True)
+    print(f"Server running on http://{_host}:{_port}")
+    socketio.run(app, host=_host, port=_port, debug=False,
+                 allow_unsafe_werkzeug=_werkzeug)
