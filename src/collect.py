@@ -6,7 +6,7 @@ features at each event, labels each row with the final outcome, and writes the
 result to ../data/play_by_play.csv.
 
 Usage:
-    python collect.py                     # defaults: 2022-23, 2023-24
+    python collect.py                     # defaults: 2020-21 through 2024-25
     python collect.py --seasons 2021-22   # one season
     python collect.py --max-games 50      # quick smoke-test run
 """
