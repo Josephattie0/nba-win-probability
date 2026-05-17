@@ -61,8 +61,8 @@ NBA API  →  collect.py  →  play_by_play.csv
 | `GET /game/<game_id>` | Full win probability curve for any past game |
 | `GET /boxscore/<game_id>` | Live player stats for a game |
 | `GET /calibration` | Model calibration data (cached after first call) |
-| `POST /predict` | One-shot prediction from a JSON game state |
-| `WS subscribe` | Subscribe to live updates for a game |
+| `POST /predict` | Snapshot prediction from a single JSON game state (see note below) |
+| `WS subscribe` | Subscribe to live updates for a game (full sequence model) |
 
 ---
 
@@ -137,6 +137,8 @@ nba-win-probability/
 ---
 
 ## One-shot prediction (REST)
+
+> **Snapshot mode caveat:** `POST /predict` runs the GRU on a single frame padded with 19 zero frames — the model sees `[0, 0, …, 0, your_input]` instead of a real 20-play sequence. It still returns a sensible probability (the GRU degrades gracefully to the snapshot), but it misses the momentum signal the model was actually trained to capture. The live WebSocket feed is where the sequence advantage shows up, since the server maintains a rolling 20-play window per game. Use `/predict` for quick sanity checks or API integration tests, not for evaluating model quality.
 
 ```bash
 curl -X POST http://localhost:5001/predict \
