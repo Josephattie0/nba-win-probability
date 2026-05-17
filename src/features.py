@@ -56,7 +56,7 @@ def build_features(raw: pd.DataFrame) -> pd.DataFrame:
     df["seconds_left"]    = df.apply(_seconds_left, axis=1)
     df["home_possession"] = df["location"].apply(lambda l: 1 if str(l).lower() == "h" else 0)
 
-    _compute_bonus(df, home_team, away_team)
+    _compute_bonus(df, home_team, away_team, home_id, away_id)
     _compute_timeouts(df, home_team, away_team, home_id, away_id)
     _compute_fg_pct(df, home_team, away_team)
     _compute_foul_trouble(df, home_team, away_team)
@@ -142,7 +142,7 @@ def _team_of_row(row, home_team, away_team, home_id, away_id) -> str:
 # Foul bonus
 # ---------------------------------------------------------------------------
 
-def _compute_bonus(df: pd.DataFrame, home_team: str, away_team: str) -> None:
+def _compute_bonus(df: pd.DataFrame, home_team: str, away_team: str, home_id, away_id) -> None:
     home_fouls, away_fouls = 0, 0
     current_period = None
     home_in_bonus_list, away_in_bonus_list = [], []
@@ -159,10 +159,10 @@ def _compute_bonus(df: pd.DataFrame, home_team: str, away_team: str) -> None:
 
         if "foul" not in str(row.get("actiontype", "") or "").lower():
             continue
-        team = str(row.get("teamtricode", "") or "").upper()
-        if team == home_team:
+        side = _team_of_row(row, home_team, away_team, home_id, away_id)
+        if side == "H":
             home_fouls += 1
-        elif team == away_team:
+        elif side == "A":
             away_fouls += 1
 
     df["home_in_bonus"] = home_in_bonus_list
