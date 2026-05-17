@@ -338,6 +338,8 @@ def _build_game_update(scoreboard_game: dict) -> dict:
 
     # Game is final — skip the model, return the actual result + last PBP actions
     if game_status == 3:
+        _game_state.pop(game_id, None)
+        reset_game(game_id)
         home_won = score_diff > 0
         actions = _fetch_pbp(game_id)
         feed = []
