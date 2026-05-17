@@ -62,6 +62,8 @@ def _rate_limit(max_calls: int, window_secs: int = 60):
             now = time.time()
             with _rate_lock:
                 calls = [t for t in _rate_store[key] if now - t < window_secs]
+                if not calls and key in _rate_store:
+                    del _rate_store[key]
                 if len(calls) >= max_calls:
                     return jsonify({"error": "Rate limit exceeded. Try again shortly."}), 429
                 calls.append(now)
