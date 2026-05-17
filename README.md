@@ -72,8 +72,8 @@ NBA API  →  collect.py  →  play_by_play.csv
 - Python 3.11+
 
 ```bash
-git clone https://github.com/yourusername/game-winner-predictor
-cd game-winner-predictor
+git clone https://github.com/Josephattie0/nba-win-probability
+cd nba-win-probability
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -116,7 +116,7 @@ python src/server.py
 ## Project Structure
 
 ```
-game-winner-predictor/
+nba-win-probability/
 ├── src/
 │   ├── collect.py      # Phase 1: data collection + feature engineering
 │   ├── features.py     # Feature computation from raw play-by-play
