@@ -27,23 +27,8 @@ from flask_socketio import SocketIO, emit
 
 from predict import predict as model_predict, reset_game
 
-# ---------------------------------------------------------------------------
-# Load environment variables from .env (if present)
-# ---------------------------------------------------------------------------
-
-def _load_env() -> None:
-    env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
-    if not os.path.exists(env_path):
-        return
-    with open(env_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip())
-
-_load_env()
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 _calibration_cache: dict | None = None
 
