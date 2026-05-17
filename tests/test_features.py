@@ -125,7 +125,7 @@ def test_bonus_triggers_at_threshold():
             teamtricode=AWAY, location="v",
         ))
     df = _df(rows)
-    _compute_bonus(df, HOME, AWAY)
+    _compute_bonus(df, HOME, AWAY, HOME_ID, AWAY_ID)
     # before 5th away foul home_in_bonus should still be 0, after it should be 1
     assert df["home_in_bonus"].iloc[4] == 0   # 4 fouls — not yet
     assert df["home_in_bonus"].iloc[5] == 1   # 5th foul recorded — bonus
@@ -143,7 +143,7 @@ def test_bonus_resets_each_period():
              teamtricode=AWAY, period=2),
     ]
     df = _df(rows)
-    _compute_bonus(df, HOME, AWAY)
+    _compute_bonus(df, HOME, AWAY, HOME_ID, AWAY_ID)
     # Only 2 fouls in Q1, never reached 5; Q2 starts fresh
     assert all(df["home_in_bonus"] == 0)
 
@@ -162,7 +162,7 @@ def test_bonus_ot_threshold_is_four():
             teamtricode=AWAY, period=5,   # first OT
         ))
     df = _df(rows)
-    _compute_bonus(df, HOME, AWAY)
+    _compute_bonus(df, HOME, AWAY, HOME_ID, AWAY_ID)
     assert df["home_in_bonus"].iloc[3] == 0   # 3 fouls — not yet
     assert df["home_in_bonus"].iloc[4] == 1   # 4th foul — bonus in OT
 
