@@ -177,3 +177,4 @@ Play-by-play data is pulled from the [nba_api](https://github.com/swar/nba_api) 
 - Live data is only available for today's games. For past games, use `GET /game/<game_id>`
 - The model is retrained from scratch each time you run `train.py` — old weights are overwritten
 - `data/` is gitignored; you need to run the full pipeline to generate it
+- **Early-game predictions are noisier.** The GRU requires a 20-play sequence; during the first 19 plays of a game the window is zero-padded. The model was trained on real sequences, so predictions in the first few minutes carry more uncertainty than mid- or late-game predictions where a full window is available.
