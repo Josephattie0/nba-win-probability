@@ -124,7 +124,7 @@ nba-win-probability/
 │   ├── predict.py      # Phase 2: inference with rolling sequence window
 │   └── server.py       # Phase 3: Flask + WebSocket server
 ├── dashboard/
-│   └── index.html      # Single-page dashboard
+│   └── index.html      # Single-file dashboard — CSS, JS, and HTML in one file, no build step, no framework
 ├── data/               # Generated — gitignored
 │   ├── play_by_play.csv
 │   ├── model.pth
