@@ -6,6 +6,10 @@ Unlike single-snapshot models, this system feeds the **last 20 plays as a sequen
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue) ![PyTorch](https://img.shields.io/badge/PyTorch-2.x-orange) ![Flask](https://img.shields.io/badge/Flask-3.x-green)
 
+| Live game | Game replay |
+|---|---|
+| ![Live game dashboard](assets/live-game.png) | ![Game replay scrubber](assets/game-replay.png) |
+
 ---
 
 ## How It Works
