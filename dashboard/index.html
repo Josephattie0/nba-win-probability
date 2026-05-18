@@ -1137,8 +1137,8 @@ function updateGauge(homeProb) {
   document.getElementById('g-away').setAttribute('d', sp > 0.005 ? arcD(0, sp) : '');
   document.getElementById('g-home').setAttribute('d', sp < 0.995 ? arcD(sp, 1) : '');
 
-  // Needle at split
-  const angle = sp * Math.PI;   // standard math angle for the split point
+  // Needle at split — matches ptOnArc which uses (1-prob)*π
+  const angle = p * Math.PI;
   const cos = Math.cos(angle), sin = Math.sin(angle);
   const x1 = (CX + (R - 15) * cos).toFixed(2), y1 = (CY - (R - 15) * sin).toFixed(2);
   const x2 = (CX + (R + 10) * cos).toFixed(2), y2 = (CY - (R + 10) * sin).toFixed(2);
